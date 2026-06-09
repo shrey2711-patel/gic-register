@@ -25,9 +25,8 @@ let firestoreDb = null;
 let cloudSyncActive = false;
 let firestoreUnsubscribe = null;
 let expandedRows = new Set();
-let commTypeState = { ac: 'direct', lp: 'direct', ed: 'direct' };
-let lpSelectedClient = null;
-let lpSelectedMemberIdx = null;
+let commTypeState = { ac: 'direct', ed: 'direct' };
+
 let currentEditId = null;
 
 // Chart instances
@@ -1067,137 +1066,7 @@ async function submitAddClient() {
   logActivity(`➕ New client added: ${name} — ${provider}`, 'success');
 }
 
-// ══════════════════════════════════════════════════════════════
-// LOG POLICY MODAL
-// ══════════════════════════════════════════════════════════════
-function openLogPolicyModal() {
-  lpSelectedClient = null; lpSelectedMemberIdx = null;
-  document.getElementById('lp_search').value = '';
-  document.getElementById('lpSearchResults').innerHTML = '';
-  document.getElementById('lpSearchResults').classList.remove('visible');
-  document.getElementById('lpSelectedClientCard').style.display = 'none';
-  document.getElementById('lpStep2').classList.add('hidden');
-  document.getElementById('lpStep3').classList.add('hidden');
-  document.getElementById('lpSaveBtn').disabled = true;
-  ['lp_provider','lp_plan','lp_policy_no','lp_plan_amount','lp_premium_amount','lp_start_date','lp_end_date','lp_policy_term'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  setCommType('lp','direct');
-  openModal('logPolicyOverlay');
-}
 
-function searchClientsForLog() {
-  const q = document.getElementById('lp_search').value.toLowerCase().trim();
-  const results = document.getElementById('lpSearchResults');
-  if (!q) { results.classList.remove('visible'); return; }
-  const matches = DATA.filter(c =>
-    c.name.toLowerCase().includes(q) || (c.mobile && c.mobile.includes(q))
-  ).slice(0, 8);
-  if (matches.length === 0) {
-    results.innerHTML = '<div style="padding:14px;color:var(--text-muted);font-size:13px;text-align:center">No client found</div>';
-    results.classList.add('visible');
-    return;
-  }
-  results.innerHTML = matches.map(c => `
-    <div class="client-result-item" onclick="selectLogClient('${c.id}')">
-      <div>
-        <div class="cri-name">${escapeHtml(c.name)}</div>
-        <div class="cri-detail">${c.mobile} &nbsp;·&nbsp; ${escapeHtml(c.provider || '')} &nbsp;·&nbsp; ${(c.family_members||[]).length} members</div>
-      </div>
-    </div>`).join('');
-  results.classList.add('visible');
-}
-
-function selectLogClient(clientId) {
-  lpSelectedClient = DATA.find(c => c.id === clientId);
-  if (!lpSelectedClient) return;
-  document.getElementById('lpSearchResults').classList.remove('visible');
-  document.getElementById('lp_search').value = lpSelectedClient.name;
-  document.getElementById('lpSelectedClientCard').style.display = 'block';
-  document.getElementById('lpClientInfo').innerHTML = `
-    <div style="flex:1">
-      <div class="sc-name">${escapeHtml(lpSelectedClient.name)}</div>
-      <div class="sc-detail">📞 ${lpSelectedClient.mobile} &nbsp;·&nbsp; ${escapeHtml(lpSelectedClient.provider || '')} &nbsp;·&nbsp; ${getPremiumModeLabel(lpSelectedClient.premium_mode)} ₹${formatCurrency(lpSelectedClient.premium_amount)}</div>
-      <div class="sc-detail" style="margin-top:4px">📋 ${(lpSelectedClient.family_members||[]).length} family members</div>
-    </div>`;
-
-  // Show family member selection
-  document.getElementById('lpStep2').classList.remove('hidden');
-  const familyList = document.getElementById('lpFamilyList');
-  familyList.innerHTML = (lpSelectedClient.family_members || []).map((m, idx) => {
-    const typeClass = { self: 'member-type-self', spouse: 'member-type-spouse', child: 'member-type-child', other: 'member-type-other' }[m.type] || 'member-type-other';
-    return `
-      <div class="family-member-card" onclick="selectLogMember(${idx}, this)" style="cursor:pointer;border:2px solid var(--card-border);transition:var(--t)" id="lpMember-${idx}">
-        <span class="member-type-tag ${typeClass}">${m.type === 'other' ? (m.other_label||'Other') : getMemberTypeLabel(m.type)}</span>
-        <div class="member-name">${escapeHtml(m.name || '—')}</div>
-        <div class="member-detail" style="font-size:11px">${m.dob ? formatDate(m.dob) : ''} ${m.gender ? '· ' + m.gender : ''}</div>
-      </div>`;
-  }).join('') || '<div style="color:var(--text-muted)">No family members</div>';
-}
-
-function selectLogMember(idx, el) {
-  lpSelectedMemberIdx = idx;
-  document.querySelectorAll('#lpFamilyList .family-member-card').forEach(c => {
-    c.style.borderColor = 'var(--card-border)'; c.style.background = '';
-  });
-  el.style.borderColor = 'var(--primary)'; el.style.background = 'var(--primary-dim)';
-  document.getElementById('lpStep3').classList.remove('hidden');
-  document.getElementById('lpSaveBtn').disabled = false;
-}
-
-async function submitLogPolicy() {
-  if (!lpSelectedClient || lpSelectedMemberIdx === null) {
-    showToast('Please select a client and family member', 'error'); return;
-  }
-  const providerSel = document.getElementById('lp_provider').value;
-  const provider = providerSel === '__other__' ? document.getElementById('lp_providerOther').value.trim() : providerSel;
-  const plan = document.getElementById('lp_plan').value.trim();
-  const premium = document.getElementById('lp_premium_amount').value;
-  const endDate = document.getElementById('lp_end_date').value;
-  if (!provider || !plan || !premium || !endDate) {
-    showToast('Please fill required policy fields', 'error'); return;
-  }
-
-  // Update the client record with new policy info
-  const clientIdx = DATA.findIndex(c => c.id === lpSelectedClient.id);
-  if (clientIdx === -1) return;
-
-  const kycDocs = await getMultipleFilesData(document.getElementById('lp_kyc_docs'));
-  const policyDoc = await getFileData(document.getElementById('lp_policy_doc'));
-  const commAmount = getCommissionAmount('lp');
-
-  const updatedClient = {
-    ...DATA[clientIdx],
-    provider, plan,
-    plan_amount: Number(document.getElementById('lp_plan_amount').value) || DATA[clientIdx].plan_amount,
-    policy_no: document.getElementById('lp_policy_no').value.trim() || DATA[clientIdx].policy_no,
-    premium_mode: document.getElementById('lp_premium_mode').value,
-    premium_amount: Number(premium),
-    start_date: document.getElementById('lp_start_date').value || DATA[clientIdx].start_date,
-    end_date: endDate,
-    policy_term: document.getElementById('lp_policy_term').value,
-    commission_type: commTypeState.lp,
-    commission_value: Number(document.getElementById(commTypeState.lp === 'percentage' ? 'lp_comm_pct' : 'lp_comm_direct').value) || 0,
-    commission_amount: commAmount,
-    kyc_docs: kycDocs.length > 0 ? kycDocs : DATA[clientIdx].kyc_docs,
-    policy_doc: policyDoc || DATA[clientIdx].policy_doc,
-    updated_at: new Date().toISOString()
-  };
-
-  DATA[clientIdx] = updatedClient;
-  updateInDB(updatedClient);
-  if (cloudSyncActive && firestoreDb) {
-    const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
-    const entry = { ...updatedClient }; delete entry.kyc_docs; delete entry.policy_doc;
-    entry.kyc_docs = updatedClient.kyc_docs.map(d => ({ name: d.name, type: d.type }));
-    entry.policy_doc = updatedClient.policy_doc ? { name: updatedClient.policy_doc.name, type: updatedClient.policy_doc.type } : null;
-    firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).doc(updatedClient.id).set(entry).catch(() => {});
-  }
-  applyFiltersAndStats();
-  closeModal('logPolicyOverlay');
-  showToast(`✅ Policy logged for ${lpSelectedClient.name}`, 'success');
-  logActivity(`📋 Policy logged: ${lpSelectedClient.name} — ${provider}`, 'success');
-}
 
 // ══════════════════════════════════════════════════════════════
 // EDIT CLIENT
