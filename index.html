@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIC Renewal Portal — Midas Money Care</title>
+<meta name="description" content="Professional GIC & Health Insurance Renewal Register. Manage client policies, track expiry, and sync across all office devices.">
+<!-- Fonts & Icons -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<!-- App CSS -->
+<link rel="stylesheet" href="style.css">
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     SECURITY OVERLAY
+═══════════════════════════════════════════════ -->
+<div class="security-overlay" id="securityOverlay">
+  <div class="security-card">
+    <div class="security-logo-wrap">
+      <img src="logo.png" alt="Midas Money Care" onerror="this.style.display='none'">
+      <div class="security-brand-text">
+        <h1>Midas Money Care</h1>
+        <p>GIC RENEWAL PORTAL v2.0</p>
+      </div>
+    </div>
+    <p class="security-title">🔐 Enter your access password to continue</p>
+    <div class="security-input-wrap">
+      <i class="fa-solid fa-lock"></i>
+      <input type="password" class="security-input" id="passwordInput"
+        placeholder="Enter password" autocomplete="off"
+        onkeydown="if(event.key==='Enter') verifyPassword()">
+    </div>
+    <button class="btn-unlock" onclick="verifyPassword()">
+      <i class="fa-solid fa-unlock-keyhole"></i>&nbsp; Unlock Portal
+    </button>
+    <p class="security-hint">Session active until browser is closed</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MOBILE HEADER
+═══════════════════════════════════════════════ -->
+<div class="mobile-header" id="mobileHeader">
+  <button class="mobile-menu-btn" onclick="toggleSidebar()" id="menuBtn">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+  <div class="mobile-brand">
+    <img src="logo.png" alt="Logo" onerror="this.style.display='none'">
+    <span>GIC Portal</span>
+  </div>
+  <button class="mobile-menu-btn" onclick="openAddClientModal()">
+    <i class="fa-solid fa-plus"></i>
+  </button>
+</div>
+
+<!-- Sidebar overlay for mobile -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN APP CONTAINER
+═══════════════════════════════════════════════ -->
+<div class="app-container">
+
+  <!-- ───── SIDEBAR ───── -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Brand -->
+    <div class="sidebar-brand">
+      <img src="logo.png" alt="Midas Money Care Logo" onerror="this.style.display='none'">
+      <div class="sidebar-brand-text">
+        <h1>Midas Money Care</h1>
+        <p>GIC RENEWAL PORTAL</p>
+      </div>
+    </div>
+
+    <!-- Live Clock -->
+    <div class="sidebar-clock">
+      <div class="clock-time" id="liveClock">--:--:--</div>
+      <div class="clock-date" id="liveDate">Loading...</div>
+    </div>
+
+    <!-- Primary Actions -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Actions</div>
+      <button class="nav-btn primary-action" id="addClientBtn" onclick="openAddClientModal(); closeSidebar();">
+        <span class="nav-icon"><i class="fa-solid fa-user-plus"></i></span>
+        Add New Client
+      </button>
+      <button class="nav-btn primary-action" onclick="openLogPolicyModal(); closeSidebar();">
+        <span class="nav-icon"><i class="fa-solid fa-file-circle-plus"></i></span>
+        Log Policy
+      </button>
+    </div>
+
+    <!-- Data Actions -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Reports & Export</div>
+      <button class="nav-btn secondary-action" onclick="exportToExcel(); closeSidebar();">
+        <span class="nav-icon"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i></span>
+        Generate Excel Report
+      </button>
+      <button class="nav-btn secondary-action" onclick="openWaTemplateModal(); closeSidebar();">
+        <span class="nav-icon"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i></span>
+        Edit WhatsApp Template
+      </button>
+    </div>
+
+    <!-- Cloud & Backup -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Cloud & Backup</div>
+      <button class="nav-btn secondary-action" onclick="openCloudSyncModal(); closeSidebar();">
+        <span class="nav-icon"><i class="fa-solid fa-cloud" style="color:var(--primary)"></i></span>
+        Cloud Sync Settings
+      </button>
+      <button class="nav-btn secondary-action" onclick="downloadBackup(); closeSidebar();">
+        <span class="nav-icon"><i class="fa-solid fa-download" style="color:var(--warning)"></i></span>
+        Download Backup
+      </button>
+      <button class="nav-btn secondary-action" onclick="document.getElementById('restoreFileInput').click(); closeSidebar();">
+        <span class="nav-icon"><i class="fa-solid fa-upload" style="color:var(--purple)"></i></span>
+        Restore Backup
+      </button>
+      <input type="file" id="restoreFileInput" accept=".json" style="display:none" onchange="restoreBackup(this)">
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Danger Zone -->
+    <div class="sidebar-section">
+      <button class="nav-btn danger-action" onclick="wipeAllData(); closeSidebar();">
+        <span class="nav-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
+        Delete All Records
+      </button>
+    </div>
+
+    <!-- Cloud Sync Status -->
+    <div class="sync-indicator" id="syncIndicator">
+      <div class="sync-dot" id="syncDot"></div>
+      <div class="sync-text">
+        <strong id="syncStatusLabel">Not Connected</strong>
+        <span id="syncSubLabel">Configure Firebase for live sync</span>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="activity-log-section">
+      <div class="activity-log-label"><i class="fa-solid fa-terminal" style="margin-right:5px;opacity:0.5"></i>Activity Log</div>
+      <div class="activity-log-scroll" id="activityLog"></div>
+    </div>
+
+  </aside><!-- end sidebar -->
+
+  <!-- ───── MAIN PANEL ───── -->
+  <div class="main-panel">
+    <div class="main-content">
+
+      <!-- STAT BADGES -->
+      <div class="stats-strip" id="statsBadges">
+        <div class="stat-badge" style="--badge-color:var(--primary);--badge-color-dim:var(--primary-dim)">
+          <div class="stat-icon"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+          <div class="stat-label">Total Premium Portfolio</div>
+          <div class="stat-value" id="statTotalPremium">₹0</div>
+          <div class="stat-sub" id="statPremiumSub">0 active policies</div>
+        </div>
+        <div class="stat-badge" style="--badge-color:var(--emerald);--badge-color-dim:var(--emerald-dim)">
+          <div class="stat-icon"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+          <div class="stat-label">Total Commission Earned</div>
+          <div class="stat-value" id="statCommission">₹0</div>
+          <div class="stat-sub" id="statCommissionSub">from active policies</div>
+        </div>
+        <div class="stat-badge" style="--badge-color:var(--primary);--badge-color-dim:var(--sky-dim)">
+          <div class="stat-icon"><i class="fa-solid fa-calendar-xmark"></i></div>
+          <div class="stat-label">Expiring in 15 Days</div>
+          <div class="stat-value" id="stat15Days">0</div>
+          <div class="stat-sub">policies need attention</div>
+        </div>
+        <div class="stat-badge" style="--badge-color:var(--warning);--badge-color-dim:var(--warning-dim)">
+          <div class="stat-icon"><i class="fa-solid fa-bell"></i></div>
+          <div class="stat-label">Expiring in 7 Days</div>
+          <div class="stat-value" id="stat7Days">0</div>
+          <div class="stat-sub">send reminders soon</div>
+        </div>
+        <div class="stat-badge" style="--badge-color:var(--danger);--badge-color-dim:var(--danger-dim)">
+          <div class="stat-icon"><i class="fa-solid fa-fire"></i></div>
+          <div class="stat-label">Expiring in 3 Days</div>
+          <div class="stat-value" id="stat3Days">0</div>
+          <div class="stat-sub">urgent action required</div>
+        </div>
+        <div class="stat-badge" style="--badge-color:var(--emerald);--badge-color-dim:var(--emerald-dim)">
+          <div class="stat-icon"><i class="fa-solid fa-shield-check"></i></div>
+          <div class="stat-label">Active Policy Count</div>
+          <div class="stat-value" id="statActive">0</div>
+          <div class="stat-sub" id="statExpiredSub">0 expired</div>
+        </div>
+      </div>
+
+      <!-- VIEW TABS -->
+      <div class="view-tabs">
+        <button class="view-tab active" id="tabRegister" onclick="switchView('register')">
+          <i class="fa-solid fa-table-list"></i> Register
+        </button>
+        <button class="view-tab" id="tabAnalytics" onclick="switchView('analytics')">
+          <i class="fa-solid fa-chart-pie"></i> Analytics
+        </button>
+      </div>
+
+      <!-- ───── REGISTER VIEW ───── -->
+      <div id="registerView">
+
+        <!-- Controls -->
+        <div class="register-controls">
+          <div class="controls-row">
+            <div class="search-wrap">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" class="search-input" id="searchInput"
+                placeholder="Search by name, policy no, mobile, provider..."
+                oninput="applyFilters()">
+            </div>
+            <select class="filter-select" id="monthFilter" onchange="applyFilters()">
+              <option value="all">All Months</option>
+              <option value="0">January</option><option value="1">February</option>
+              <option value="2">March</option><option value="3">April</option>
+              <option value="4">May</option><option value="5">June</option>
+              <option value="6">July</option><option value="7">August</option>
+              <option value="8">September</option><option value="9">October</option>
+              <option value="10">November</option><option value="11">December</option>
+            </select>
+            <select class="filter-select" id="sortBy" onchange="applyFilters()">
+              <option value="date_asc">Date: Earliest First</option>
+              <option value="date_desc">Date: Latest First</option>
+              <option value="name_az">Name: A → Z</option>
+              <option value="name_za">Name: Z → A</option>
+              <option value="premium_high">Highest Premium</option>
+              <option value="premium_low">Lowest Premium</option>
+              <option value="commission_high">Highest Commission</option>
+            </select>
+            <span class="record-count" id="recordCount">0 records</span>
+          </div>
+          <div class="status-tabs">
+            <button class="status-tab active" data-filter="all" onclick="setStatusFilter('all',this)">All</button>
+            <button class="status-tab tab-expired" data-filter="expired" onclick="setStatusFilter('expired',this)">🔴 Expired</button>
+            <button class="status-tab tab-today" data-filter="today" onclick="setStatusFilter('today',this)">⚠️ Today</button>
+            <button class="status-tab tab-3" data-filter="3" onclick="setStatusFilter('3',this)">🔔 3 Days</button>
+            <button class="status-tab tab-7" data-filter="7" onclick="setStatusFilter('7',this)">📅 7 Days</button>
+            <button class="status-tab tab-15" data-filter="15" onclick="setStatusFilter('15',this)">📋 15 Days</button>
+          </div>
+        </div>
+
+        <!-- Register Table -->
+        <div class="table-card">
+          <div class="table-scroll">
+            <table id="mainTable">
+              <thead>
+                <tr>
+                  <th style="width:40px"></th>
+                  <th>Sr</th>
+                  <th>Client Details</th>
+                  <th>Plan & Provider</th>
+                  <th>Policy No.</th>
+                  <th>Premium</th>
+                  <th>Commission</th>
+                  <th>End Date</th>
+                  <th>Status</th>
+                  <th>KYC</th>
+                  <th style="min-width:160px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <tr><td colspan="11"><div class="empty-state"><div class="empty-icon">📋</div><h3>Loading records...</h3><p>Please wait</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- end registerView -->
+
+      <!-- ───── ANALYTICS VIEW ───── -->
+      <div id="analyticsView" class="hidden">
+
+        <div class="analytics-grid">
+
+          <!-- Provider Share -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-title">Insurance Provider Share</div>
+                <div class="chart-subtitle">Policy distribution by company</div>
+              </div>
+              <i class="fa-solid fa-building-columns" style="color:var(--text-light);font-size:20px"></i>
+            </div>
+            <div class="chart-container">
+              <canvas id="providerChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Urgency Breakdown -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-title">Policy Expiry Urgency</div>
+                <div class="chart-subtitle">Current renewal urgency breakdown</div>
+              </div>
+              <i class="fa-solid fa-circle-exclamation" style="color:var(--text-light);font-size:20px"></i>
+            </div>
+            <div class="chart-container">
+              <canvas id="urgencyChart"></canvas>
+            </div>
+            <div class="urgency-breakdown" id="urgencyBreakdown">
+              <!-- filled by JS -->
+            </div>
+          </div>
+
+          <!-- Monthly Forecast -->
+          <div class="chart-card full-width">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-title">Monthly Renewal Forecast</div>
+                <div class="chart-subtitle">Premium collected vs. policy count by month</div>
+              </div>
+              <select class="year-selector" id="forecastYear" onchange="renderAnalytics()">
+                <!-- filled by JS -->
+              </select>
+            </div>
+            <div class="chart-container tall">
+              <canvas id="forecastChart"></canvas>
+            </div>
+          </div>
+
+        </div>
+      </div><!-- end analyticsView -->
+
+    </div><!-- end main-content -->
+  </div><!-- end main-panel -->
+</div><!-- end app-container -->
+
+
+<!-- ═══════════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════════ -->
+
+<!-- ── 1. ADD CLIENT MODAL ── -->
+<div class="modal-overlay" id="addClientOverlay">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div class="modal-header-icon blue"><i class="fa-solid fa-user-plus"></i></div>
+        <div>
+          <div class="modal-title">Add New Client</div>
+          <div class="modal-subtitle">Register a new insurance client profile</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal('addClientOverlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" id="addClientBody">
+
+      <!-- Section 1: Personal Info -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-user"></i> Personal Information</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Full Name <span class="required">*</span></label>
+            <input type="text" class="form-input" id="ac_name" placeholder="e.g. Ramesh Kumar Sharma">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mobile Number <span class="required">*</span></label>
+            <input type="tel" class="form-input" id="ac_mobile" placeholder="10-digit mobile number">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input type="email" class="form-input" id="ac_email" placeholder="email@example.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Profession</label>
+            <select class="form-select" id="ac_profession">
+              <option value="">Select profession</option>
+              <option>Salaried (Private)</option>
+              <option>Salaried (Government)</option>
+              <option>Business Owner</option>
+              <option>Self-Employed / Freelancer</option>
+              <option>Farmer</option>
+              <option>Retired</option>
+              <option>Student</option>
+              <option>Housewife</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group form-grid-full">
+            <label class="form-label">Address</label>
+            <textarea class="form-textarea" id="ac_address" placeholder="Full address..." rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Policy Details -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-file-contract"></i> Policy Details</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Insurance Provider <span class="required">*</span></label>
+            <select class="form-select" id="ac_provider" onchange="toggleOtherProvider('ac')">
+              <option value="">Select company</option>
+              <option>Star Health Insurance</option>
+              <option>HDFC ERGO Health Insurance</option>
+              <option>Niva Bupa Health Insurance</option>
+              <option>Care Health Insurance</option>
+              <option>Aditya Birla Health Insurance</option>
+              <option>ManipalCigna Health Insurance</option>
+              <option>United India Insurance</option>
+              <option>New India Assurance</option>
+              <option>National Insurance Company</option>
+              <option>Oriental Insurance</option>
+              <option>Universal Sompo Health Insurance</option>
+              <option>LIC of India</option>
+              <option>SBI Life Insurance</option>
+              <option>ICICI Prudential Life Insurance</option>
+              <option>HDFC Life Insurance</option>
+              <option>Max Life Insurance</option>
+              <option>Bajaj Allianz Life Insurance</option>
+              <option>Tata AIA Life Insurance</option>
+              <option>Kotak Life Insurance</option>
+              <option>Reliance Nippon Life Insurance</option>
+              <option value="__other__">⊕ Other (Enter Manually)</option>
+            </select>
+          </div>
+          <div class="form-group" id="ac_providerOtherGroup" style="display:none">
+            <label class="form-label">Enter Provider Name</label>
+            <input type="text" class="form-input" id="ac_providerOther" placeholder="Insurance company name">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Plan / Policy Name <span class="required">*</span></label>
+            <input type="text" class="form-input" id="ac_plan" placeholder="e.g. Star Comprehensive, HDFC Optima Restore">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sum Insured / Plan Amount (₹)</label>
+            <div class="form-input-prefix">
+              <span>₹</span>
+              <input type="number" class="form-input" id="ac_plan_amount" placeholder="e.g. 500000">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy Number</label>
+            <input type="text" class="form-input" id="ac_policy_no" placeholder="e.g. P/181323/01/2026/001234">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Payment Mode <span class="required">*</span></label>
+            <select class="form-select" id="ac_premium_mode">
+              <option value="yearly">Yearly (Annual)</option>
+              <option value="half_yearly">Half-Yearly (6 Months)</option>
+              <option value="quarterly">Quarterly (3 Months)</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Amount (₹) <span class="required">*</span></label>
+            <div class="form-input-prefix">
+              <span>₹</span>
+              <input type="number" class="form-input" id="ac_premium_amount" placeholder="0" oninput="updateCommissionCalc('ac')">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy Start Date <span class="required">*</span></label>
+            <input type="date" class="form-input" id="ac_start_date" oninput="calcPolicyTerm('ac')">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy End Date <span class="required">*</span></label>
+            <input type="date" class="form-input" id="ac_end_date" oninput="calcPolicyTerm('ac')">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy Term</label>
+            <input type="text" class="form-input" id="ac_policy_term" placeholder="Auto-calculated" readonly style="background:#f8fafc;color:var(--text-muted)">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Commission -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-percent"></i> Commission Details</div>
+        <div class="form-group">
+          <label class="form-label">Commission Type</label>
+          <div class="toggle-group">
+            <button class="toggle-opt active" id="ac_comm_direct_btn" onclick="setCommType('ac','direct')">💵 Direct Amount</button>
+            <button class="toggle-opt" id="ac_comm_pct_btn" onclick="setCommType('ac','percentage')">% By Percentage</button>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group" id="ac_directDiv">
+            <label class="form-label">Commission Amount (₹)</label>
+            <div class="form-input-prefix">
+              <span>₹</span>
+              <input type="number" class="form-input" id="ac_comm_direct" placeholder="e.g. 2500">
+            </div>
+          </div>
+          <div class="form-group hidden" id="ac_pctDiv">
+            <label class="form-label">Commission Percentage (%)</label>
+            <input type="number" class="form-input" id="ac_comm_pct" placeholder="e.g. 15" min="0" max="100" oninput="updateCommissionCalc('ac')">
+          </div>
+          <div class="form-group hidden" id="ac_calcDiv">
+            <label class="form-label">Calculated Commission</label>
+            <div class="form-calc-display">₹ <span id="ac_comm_calc">0</span></div>
+            <div class="form-hint">= Premium × Commission %</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Fitness / Health Notes -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-heart-pulse"></i> Health & Fitness</div>
+        <div class="form-group">
+          <label class="form-label">Fitness Details / Health Notes</label>
+          <textarea class="form-textarea" id="ac_fitness" placeholder="Any pre-existing conditions, health remarks, member fitness info..." rows="3"></textarea>
+        </div>
+      </div>
+
+      <!-- Section 5: Family Members -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-people-group"></i> Family Members</div>
+        <div class="form-group">
+          <label class="form-label">Total Family Members (including self) <span class="required">*</span></label>
+          <input type="number" class="form-input" id="ac_family_count" min="1" max="15" value="1" oninput="updateFamilyCards('ac')" style="max-width:160px">
+          <div class="form-hint">Enter count → family member forms will appear below</div>
+        </div>
+        <div id="ac_familyCardsContainer" class="family-cards-container">
+          <!-- Dynamically generated -->
+        </div>
+      </div>
+
+      <!-- Section 6: Documents -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-folder-open"></i> Documents</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">KYC Documents (Multiple files allowed)</label>
+            <label class="file-upload-label">
+              <i class="fa-solid fa-id-card" style="color:var(--purple)"></i>
+              <span>Click to upload KYC files</span>
+              <input type="file" id="ac_kyc_docs" multiple accept="image/*,.pdf">
+            </label>
+            <div class="file-upload-preview" id="ac_kyc_preview">No files selected</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy Document (PDF/Image)</label>
+            <label class="file-upload-label">
+              <i class="fa-solid fa-file-pdf" style="color:var(--danger)"></i>
+              <span>Click to upload policy doc</span>
+              <input type="file" id="ac_policy_doc" accept="image/*,.pdf">
+            </label>
+            <div class="file-upload-preview" id="ac_policy_preview">No file selected</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addClientOverlay')">Cancel</button>
+      <button class="btn btn-primary btn-lg" onclick="submitAddClient()">
+        <i class="fa-solid fa-user-plus"></i> Save Client
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 2. LOG POLICY MODAL ── -->
+<div class="modal-overlay" id="logPolicyOverlay">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div class="modal-header-icon green"><i class="fa-solid fa-file-circle-plus"></i></div>
+        <div>
+          <div class="modal-title">Log Policy</div>
+          <div class="modal-subtitle">Attach or update policy for an existing client</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal('logPolicyOverlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <!-- Step 1: Search Client -->
+      <div class="form-section" id="lpStep1">
+        <div class="form-section-title"><i class="fa-solid fa-magnifying-glass"></i> Step 1: Find Client</div>
+        <div class="form-group" style="position:relative">
+          <label class="form-label">Search by Name or Mobile Number</label>
+          <div style="position:relative">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted)"></i>
+            <input type="text" class="form-input" id="lp_search" placeholder="Type name or mobile..." style="padding-left:36px" oninput="searchClientsForLog()">
+          </div>
+          <div class="client-search-results" id="lpSearchResults"></div>
+        </div>
+        <div id="lpSelectedClientCard" style="display:none">
+          <div class="selected-client-card" id="lpClientInfo"></div>
+        </div>
+      </div>
+
+      <!-- Step 2: Select Family Member -->
+      <div class="form-section hidden" id="lpStep2">
+        <div class="form-section-title"><i class="fa-solid fa-people-group"></i> Step 2: Select Family Member</div>
+        <div id="lpFamilyList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px"></div>
+      </div>
+
+      <!-- Step 3: Policy Details -->
+      <div class="form-section hidden" id="lpStep3">
+        <div class="form-section-title"><i class="fa-solid fa-file-contract"></i> Step 3: Policy Details</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Insurance Provider <span class="required">*</span></label>
+            <select class="form-select" id="lp_provider" onchange="toggleOtherProvider('lp')">
+              <option value="">Select company</option>
+              <option>Star Health Insurance</option>
+              <option>HDFC ERGO Health Insurance</option>
+              <option>Niva Bupa Health Insurance</option>
+              <option>Care Health Insurance</option>
+              <option>Aditya Birla Health Insurance</option>
+              <option>ManipalCigna Health Insurance</option>
+              <option>United India Insurance</option>
+              <option>New India Assurance</option>
+              <option>National Insurance Company</option>
+              <option>Oriental Insurance</option>
+              <option>LIC of India</option>
+              <option>SBI Life Insurance</option>
+              <option>ICICI Prudential Life Insurance</option>
+              <option>HDFC Life Insurance</option>
+              <option>Max Life Insurance</option>
+              <option>Bajaj Allianz Life Insurance</option>
+              <option>Tata AIA Life Insurance</option>
+              <option>Kotak Life Insurance</option>
+              <option value="__other__">⊕ Other (Enter Manually)</option>
+            </select>
+          </div>
+          <div class="form-group hidden" id="lp_providerOtherGroup">
+            <label class="form-label">Enter Provider Name</label>
+            <input type="text" class="form-input" id="lp_providerOther" placeholder="Insurance company name">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Plan Name <span class="required">*</span></label>
+            <input type="text" class="form-input" id="lp_plan" placeholder="e.g. Star Comprehensive">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy Number</label>
+            <input type="text" class="form-input" id="lp_policy_no" placeholder="Policy number">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sum Insured (₹)</label>
+            <div class="form-input-prefix">
+              <span>₹</span>
+              <input type="number" class="form-input" id="lp_plan_amount" placeholder="e.g. 500000">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Mode <span class="required">*</span></label>
+            <select class="form-select" id="lp_premium_mode">
+              <option value="yearly">Yearly</option>
+              <option value="half_yearly">Half-Yearly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Amount (₹) <span class="required">*</span></label>
+            <div class="form-input-prefix">
+              <span>₹</span>
+              <input type="number" class="form-input" id="lp_premium_amount" placeholder="0" oninput="updateCommissionCalc('lp')">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-input" id="lp_start_date" oninput="calcPolicyTerm('lp')">
+          </div>
+          <div class="form-group">
+            <label class="form-label">End Date <span class="required">*</span></label>
+            <input type="date" class="form-input" id="lp_end_date" oninput="calcPolicyTerm('lp')">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy Term</label>
+            <input type="text" class="form-input" id="lp_policy_term" placeholder="Auto-calculated" readonly style="background:#f8fafc">
+          </div>
+        </div>
+        <!-- Commission -->
+        <div class="form-group" style="margin-top:8px">
+          <label class="form-label">Commission Type</label>
+          <div class="toggle-group">
+            <button class="toggle-opt active" id="lp_comm_direct_btn" onclick="setCommType('lp','direct')">💵 Direct Amount</button>
+            <button class="toggle-opt" id="lp_comm_pct_btn" onclick="setCommType('lp','percentage')">% By Percentage</button>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group" id="lp_directDiv">
+            <label class="form-label">Commission Amount (₹)</label>
+            <div class="form-input-prefix"><span>₹</span>
+              <input type="number" class="form-input" id="lp_comm_direct" placeholder="e.g. 2500">
+            </div>
+          </div>
+          <div class="form-group hidden" id="lp_pctDiv">
+            <label class="form-label">Commission Percentage (%)</label>
+            <input type="number" class="form-input" id="lp_comm_pct" placeholder="e.g. 15" oninput="updateCommissionCalc('lp')">
+          </div>
+          <div class="form-group hidden" id="lp_calcDiv">
+            <label class="form-label">Calculated Commission</label>
+            <div class="form-calc-display">₹ <span id="lp_comm_calc">0</span></div>
+          </div>
+        </div>
+        <!-- Documents -->
+        <div class="form-group" style="margin-top:8px">
+          <label class="form-label">KYC Documents</label>
+          <label class="file-upload-label">
+            <i class="fa-solid fa-id-card" style="color:var(--purple)"></i>
+            <span>Upload KYC files</span>
+            <input type="file" id="lp_kyc_docs" multiple accept="image/*,.pdf">
+          </label>
+          <div class="file-upload-preview" id="lp_kyc_preview">No files selected</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Policy Document</label>
+          <label class="file-upload-label">
+            <i class="fa-solid fa-file-pdf" style="color:var(--danger)"></i>
+            <span>Upload policy document</span>
+            <input type="file" id="lp_policy_doc" accept="image/*,.pdf">
+          </label>
+          <div class="file-upload-preview" id="lp_policy_preview">No file selected</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('logPolicyOverlay')">Cancel</button>
+      <button class="btn btn-success btn-lg" onclick="submitLogPolicy()" id="lpSaveBtn" disabled>
+        <i class="fa-solid fa-floppy-disk"></i> Save Policy
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 3. EDIT CLIENT MODAL ── -->
+<div class="modal-overlay" id="editClientOverlay">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div class="modal-header-icon orange"><i class="fa-solid fa-pen-to-square"></i></div>
+        <div>
+          <div class="modal-title">Edit Client Record</div>
+          <div class="modal-subtitle" id="editModalSubtitle">Editing client details</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal('editClientOverlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" id="editClientBody">
+      <input type="hidden" id="edit_clientId">
+      <!-- Personal -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-user"></i> Personal Information</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Full Name <span class="required">*</span></label>
+            <input type="text" class="form-input" id="ed_name">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mobile Number <span class="required">*</span></label>
+            <input type="tel" class="form-input" id="ed_mobile">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-input" id="ed_email">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Profession</label>
+            <select class="form-select" id="ed_profession">
+              <option value="">Select</option>
+              <option>Salaried (Private)</option><option>Salaried (Government)</option>
+              <option>Business Owner</option><option>Self-Employed / Freelancer</option>
+              <option>Farmer</option><option>Retired</option><option>Student</option>
+              <option>Housewife</option><option>Other</option>
+            </select>
+          </div>
+          <div class="form-group form-grid-full">
+            <label class="form-label">Address</label>
+            <textarea class="form-textarea" id="ed_address" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <!-- Policy -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-file-contract"></i> Policy Details</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Insurance Provider <span class="required">*</span></label>
+            <select class="form-select" id="ed_provider" onchange="toggleOtherProvider('ed')">
+              <option value="">Select company</option>
+              <option>Star Health Insurance</option>
+              <option>HDFC ERGO Health Insurance</option>
+              <option>Niva Bupa Health Insurance</option>
+              <option>Care Health Insurance</option>
+              <option>Aditya Birla Health Insurance</option>
+              <option>ManipalCigna Health Insurance</option>
+              <option>United India Insurance</option>
+              <option>New India Assurance</option>
+              <option>National Insurance Company</option>
+              <option>Oriental Insurance</option>
+              <option>LIC of India</option>
+              <option>SBI Life Insurance</option>
+              <option>ICICI Prudential Life Insurance</option>
+              <option>HDFC Life Insurance</option>
+              <option>Max Life Insurance</option>
+              <option>Bajaj Allianz Life Insurance</option>
+              <option>Tata AIA Life Insurance</option>
+              <option>Kotak Life Insurance</option>
+              <option value="__other__">⊕ Other (Enter Manually)</option>
+            </select>
+          </div>
+          <div class="form-group hidden" id="ed_providerOtherGroup">
+            <label class="form-label">Enter Provider Name</label>
+            <input type="text" class="form-input" id="ed_providerOther">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Plan Name <span class="required">*</span></label>
+            <input type="text" class="form-input" id="ed_plan">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sum Insured (₹)</label>
+            <div class="form-input-prefix"><span>₹</span>
+              <input type="number" class="form-input" id="ed_plan_amount">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy Number</label>
+            <input type="text" class="form-input" id="ed_policy_no">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Mode</label>
+            <select class="form-select" id="ed_premium_mode">
+              <option value="yearly">Yearly</option>
+              <option value="half_yearly">Half-Yearly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Amount (₹) <span class="required">*</span></label>
+            <div class="form-input-prefix"><span>₹</span>
+              <input type="number" class="form-input" id="ed_premium_amount" oninput="updateCommissionCalc('ed')">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-input" id="ed_start_date" oninput="calcPolicyTerm('ed')">
+          </div>
+          <div class="form-group">
+            <label class="form-label">End Date <span class="required">*</span></label>
+            <input type="date" class="form-input" id="ed_end_date" oninput="calcPolicyTerm('ed')">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy Term</label>
+            <input type="text" class="form-input" id="ed_policy_term" readonly style="background:#f8fafc">
+          </div>
+        </div>
+      </div>
+      <!-- Commission -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-percent"></i> Commission</div>
+        <div class="form-group">
+          <label class="form-label">Commission Type</label>
+          <div class="toggle-group">
+            <button class="toggle-opt active" id="ed_comm_direct_btn" onclick="setCommType('ed','direct')">💵 Direct Amount</button>
+            <button class="toggle-opt" id="ed_comm_pct_btn" onclick="setCommType('ed','percentage')">% By Percentage</button>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group" id="ed_directDiv">
+            <label class="form-label">Commission Amount (₹)</label>
+            <div class="form-input-prefix"><span>₹</span>
+              <input type="number" class="form-input" id="ed_comm_direct">
+            </div>
+          </div>
+          <div class="form-group hidden" id="ed_pctDiv">
+            <label class="form-label">Commission %</label>
+            <input type="number" class="form-input" id="ed_comm_pct" oninput="updateCommissionCalc('ed')">
+          </div>
+          <div class="form-group hidden" id="ed_calcDiv">
+            <label class="form-label">Calculated Commission</label>
+            <div class="form-calc-display">₹ <span id="ed_comm_calc">0</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- Health -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-heart-pulse"></i> Health Notes</div>
+        <div class="form-group">
+          <textarea class="form-textarea" id="ed_fitness" rows="2" placeholder="Health details..."></textarea>
+        </div>
+      </div>
+      <!-- Family -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-people-group"></i> Family Members</div>
+        <div class="form-group">
+          <label class="form-label">Total Family Members</label>
+          <input type="number" class="form-input" id="ed_family_count" min="1" max="15" value="1" oninput="updateFamilyCards('ed')" style="max-width:160px">
+        </div>
+        <div id="ed_familyCardsContainer" class="family-cards-container"></div>
+      </div>
+      <!-- Documents -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-folder-open"></i> Documents</div>
+        <div class="info-box" style="margin-bottom:10px">
+          <i class="fa-solid fa-circle-info"></i>
+          Uploading new files will replace existing documents. Leave blank to keep current files.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">KYC Documents</label>
+            <label class="file-upload-label">
+              <i class="fa-solid fa-id-card" style="color:var(--purple)"></i>
+              <span id="ed_kyc_btn_label">Replace KYC files</span>
+              <input type="file" id="ed_kyc_docs" multiple accept="image/*,.pdf">
+            </label>
+            <div class="file-upload-preview" id="ed_kyc_preview"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Policy Document</label>
+            <label class="file-upload-label">
+              <i class="fa-solid fa-file-pdf" style="color:var(--danger)"></i>
+              <span id="ed_policy_btn_label">Replace policy doc</span>
+              <input type="file" id="ed_policy_doc" accept="image/*,.pdf">
+            </label>
+            <div class="file-upload-preview" id="ed_policy_preview"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editClientOverlay')">Cancel</button>
+      <button class="btn btn-primary btn-lg" onclick="submitEditClient()">
+        <i class="fa-solid fa-floppy-disk"></i> Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 4. WHATSAPP TEMPLATE MODAL ── -->
+<div class="modal-overlay" id="waTemplateOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div class="modal-header-icon green"><i class="fa-brands fa-whatsapp"></i></div>
+        <div>
+          <div class="modal-title">WhatsApp Message Template</div>
+          <div class="modal-subtitle">Customise the renewal reminder message</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal('waTemplateOverlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-code"></i> Available Variables (click to insert)</div>
+        <div class="variable-chips">
+          <span class="var-chip" onclick="insertVar('{name}')"><code>{name}</code></span>
+          <span class="var-chip" onclick="insertVar('{provider}')"><code>{provider}</code></span>
+          <span class="var-chip" onclick="insertVar('{plan}')"><code>{plan}</code></span>
+          <span class="var-chip" onclick="insertVar('{policy_no}')"><code>{policy_no}</code></span>
+          <span class="var-chip" onclick="insertVar('{end_date}')"><code>{end_date}</code></span>
+          <span class="var-chip" onclick="insertVar('{days}')"><code>{days}</code></span>
+          <span class="var-chip" onclick="insertVar('{premium}')"><code>{premium}</code></span>
+          <span class="var-chip" onclick="insertVar('{mobile}')"><code>{mobile}</code></span>
+          <span class="var-chip" onclick="insertVar('{plan_amount}')"><code>{plan_amount}</code></span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message Template</label>
+        <textarea class="form-textarea template-textarea" id="waTemplateText" rows="10" oninput="updateWaPreview()"></textarea>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i> Live Preview</div>
+        <div class="template-preview-box" id="waPreviewBox">Preview will appear here...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="resetWaTemplate()"><i class="fa-solid fa-rotate-left"></i> Reset Default</button>
+      <button class="btn btn-secondary" onclick="closeModal('waTemplateOverlay')">Cancel</button>
+      <button class="btn btn-success" onclick="saveWaTemplate()"><i class="fa-solid fa-floppy-disk"></i> Save Template</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 5. CLOUD SYNC MODAL ── -->
+<div class="modal-overlay" id="cloudSyncOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div class="modal-header-icon blue"><i class="fa-solid fa-cloud"></i></div>
+        <div>
+          <div class="modal-title">Cloud Sync Settings</div>
+          <div class="modal-subtitle">Firebase Firestore for live device sync</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal('cloudSyncOverlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="cloudStatusBadgeWrap" style="text-align:center;margin-bottom:8px">
+        <span class="firebase-status-badge disconnected" id="cloudStatusBadge">
+          <i class="fa-solid fa-circle-xmark"></i> Not Connected
+        </span>
+      </div>
+      <div class="info-box">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>Create a free Firebase project at <strong>console.firebase.google.com</strong>, enable Firestore, and paste your config keys below for live sync across all devices.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Project ID</label>
+        <input type="text" class="form-input" id="fb_projectId" placeholder="your-project-id">
+      </div>
+      <div class="form-group">
+        <label class="form-label">API Key</label>
+        <input type="text" class="form-input" id="fb_apiKey" placeholder="AIzaSy...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Auth Domain</label>
+        <input type="text" class="form-input" id="fb_authDomain" placeholder="your-project.firebaseapp.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Storage Bucket</label>
+        <input type="text" class="form-input" id="fb_storageBucket" placeholder="your-project.appspot.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Firestore Collection Name</label>
+        <input type="text" class="form-input" id="fb_collection" placeholder="gic_policies" value="gic_policies">
+      </div>
+      <div id="cloudConnectStatus" style="font-size:12px;color:var(--text-muted);text-align:center;min-height:18px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" onclick="disconnectCloud()" id="disconnectBtn" style="display:none">
+        <i class="fa-solid fa-plug-circle-xmark"></i> Disconnect
+      </button>
+      <button class="btn btn-secondary" onclick="closeModal('cloudSyncOverlay')">Close</button>
+      <button class="btn btn-primary" onclick="connectCloud()">
+        <i class="fa-solid fa-plug"></i> Connect & Sync
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 6. VIEW CLIENT DETAILS MODAL ── -->
+<div class="modal-overlay" id="viewClientOverlay">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div class="modal-header-icon blue"><i class="fa-solid fa-circle-user"></i></div>
+        <div>
+          <div class="modal-title" id="viewClientName">Client Details</div>
+          <div class="modal-subtitle" id="viewClientSub">Full profile view</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal('viewClientOverlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" id="viewClientBody">
+      <!-- Filled by JS -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('viewClientOverlay')">Close</button>
+      <button class="btn btn-primary" id="viewEditBtn" onclick="closeModal('viewClientOverlay')">
+        <i class="fa-solid fa-pen-to-square"></i> Edit Client
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="appToast">
+  <span class="toast-icon" id="toastIcon"></span>
+  <span id="toastMsg"></span>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
