@@ -516,11 +516,94 @@ function formatDate(str) {
   if (!str) return '—';
   const d = new Date(str);
   if (isNaN(d)) return str;
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${dd}-${mm}-${yyyy}`;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+
+function ddmmyyyyToYyyymmdd(str) {
+  if (!str) return '';
+  const parts = str.split('-');
+  if (parts.length === 3) {
+    const day = parts[0];
+    const month = parts[1];
+    const year = parts[2];
+    return `${year}-${month}-${day}`;
+  }
+  return str;
+}
+
+function yyyymmddToDdmmyyyy(str) {
+  if (!str) return '';
+  const parts = str.split('-');
+  if (parts.length === 3) {
+    const year = parts[0];
+    const month = parts[1];
+    const day = parts[2];
+    return `${day}-${month}-${year}`;
+  }
+  return str;
+}
+
+function parseDateString(str) {
+  if (!str) return null;
+  if (/^\d{2}-\d{2}-\d{4}$/.test(str)) {
+    const parts = str.split('-');
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    const d = new Date(year, month, day);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function isValidDateString(str) {
+  if (!str) return true;
+  if (!/^\d{2}-\d{2}-\d{4}$/.test(str)) return false;
+  const parts = str.split('-');
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  if (year < 1900 || year > 2100) return false;
+  const d = new Date(year, month - 1, day);
+  return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+}
+
+// Delegated Date Mask Input Listeners
+document.addEventListener('keydown', function(e) {
+  if (e.target && e.target.classList.contains('date-mask')) {
+    e.target.lastKey = e.key;
+    if (e.key === 'Backspace') {
+      const start = e.target.selectionStart;
+      const val = e.target.value;
+      if (start > 0 && val[start - 1] === '-') {
+        e.preventDefault();
+        e.target.value = val.slice(0, start - 2) + val.slice(start);
+        e.target.setSelectionRange(start - 2, start - 2);
+        e.target.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+  }
+});
+
+document.addEventListener('input', function(e) {
+  if (e.target && e.target.classList.contains('date-mask')) {
+    let val = e.target.value.replace(/[^0-9]/g, '');
+    let res = '';
+    if (val.length > 0) {
+      res += val.substring(0, 2);
+    }
+    if (val.length > 2) {
+      res += '-' + val.substring(2, 4);
+    }
+    if (val.length > 4) {
+      res += '-' + val.substring(4, 8);
+    }
+    e.target.value = res;
+  }
+});
 
 function formatCurrency(val) {
   const n = Number(val);
@@ -1013,10 +1096,26 @@ async function submitAddClient() {
   const provider = providerSel === '__other__' ? document.getElementById('ac_providerOther').value.trim() : providerSel;
   const plan = document.getElementById('ac_plan').value.trim();
   const premiumAmount = document.getElementById('ac_premium_amount').value;
-  const endDate = document.getElementById('ac_end_date').value;
+  const startDateRaw = document.getElementById('ac_start_date').value.trim();
+  const endDateRaw = document.getElementById('ac_end_date').value.trim();
 
-  if (!name || !mobile || !provider || !plan || !premiumAmount || !endDate) {
+  if (!name || !mobile || !provider || !plan || !premiumAmount || !endDateRaw) {
     showToast('Please fill all required (*) fields', 'error'); return;
+  }
+
+  if (startDateRaw && !isValidDateString(startDateRaw)) {
+    showToast('Please enter a valid Policy Start Date in DD-MM-YYYY format', 'error'); return;
+  }
+  if (!isValidDateString(endDateRaw)) {
+    showToast('Please enter a valid Policy End Date in DD-MM-YYYY format', 'error'); return;
+  }
+
+  const count = Number(document.getElementById('ac_family_count').value) || 1;
+  for (let i = 0; i < count; i++) {
+    const rawDob = (document.getElementById(`ac_mdob_${i}`) || {}).value || '';
+    if (rawDob && !isValidDateString(rawDob)) {
+      showToast(`Please enter a valid DOB (DD-MM-YYYY) for Member ${i + 1}`, 'error'); return;
+    }
   }
 
   const commAmount = getCommissionAmount('ac');
@@ -1036,8 +1135,8 @@ async function submitAddClient() {
     policy_no: document.getElementById('ac_policy_no').value.trim(),
     premium_mode: document.getElementById('ac_premium_mode').value,
     premium_amount: Number(premiumAmount),
-    start_date: document.getElementById('ac_start_date').value,
-    end_date: endDate,
+    start_date: ddmmyyyyToYyyymmdd(startDateRaw),
+    end_date: ddmmyyyyToYyyymmdd(endDateRaw),
     policy_term: document.getElementById('ac_policy_term').value,
     commission_type: commTypeState.ac,
     commission_value: Number(document.getElementById(commTypeState.ac === 'percentage' ? 'ac_comm_pct' : 'ac_comm_direct').value) || 0,
@@ -1106,8 +1205,8 @@ function openEditModal(clientId) {
   document.getElementById('ed_policy_no').value = client.policy_no || '';
   document.getElementById('ed_premium_mode').value = client.premium_mode || 'yearly';
   document.getElementById('ed_premium_amount').value = client.premium_amount || '';
-  document.getElementById('ed_start_date').value = client.start_date || '';
-  document.getElementById('ed_end_date').value = client.end_date || '';
+  document.getElementById('ed_start_date').value = yyyymmddToDdmmyyyy(client.start_date || '');
+  document.getElementById('ed_end_date').value = yyyymmddToDdmmyyyy(client.end_date || '');
   document.getElementById('ed_policy_term').value = client.policy_term || '';
 
   // Commission
@@ -1146,10 +1245,26 @@ async function submitEditClient() {
   const provider = providerSel === '__other__' ? document.getElementById('ed_providerOther').value.trim() : providerSel;
   const plan = document.getElementById('ed_plan').value.trim();
   const premiumAmount = document.getElementById('ed_premium_amount').value;
-  const endDate = document.getElementById('ed_end_date').value;
+  const startDateRaw = document.getElementById('ed_start_date').value.trim();
+  const endDateRaw = document.getElementById('ed_end_date').value.trim();
 
-  if (!name || !mobile || !provider || !plan || !premiumAmount || !endDate) {
+  if (!name || !mobile || !provider || !plan || !premiumAmount || !endDateRaw) {
     showToast('Please fill all required fields', 'error'); return;
+  }
+
+  if (startDateRaw && !isValidDateString(startDateRaw)) {
+    showToast('Please enter a valid Start Date in DD-MM-YYYY format', 'error'); return;
+  }
+  if (!isValidDateString(endDateRaw)) {
+    showToast('Please enter a valid End Date in DD-MM-YYYY format', 'error'); return;
+  }
+
+  const count = Number(document.getElementById('ed_family_count').value) || 1;
+  for (let i = 0; i < count; i++) {
+    const rawDob = (document.getElementById(`ed_mdob_${i}`) || {}).value || '';
+    if (rawDob && !isValidDateString(rawDob)) {
+      showToast(`Please enter a valid DOB (DD-MM-YYYY) for Member ${i + 1}`, 'error'); return;
+    }
   }
 
   const commAmount = getCommissionAmount('ed');
@@ -1170,8 +1285,8 @@ async function submitEditClient() {
     policy_no: document.getElementById('ed_policy_no').value.trim(),
     premium_mode: document.getElementById('ed_premium_mode').value,
     premium_amount: Number(premiumAmount),
-    start_date: document.getElementById('ed_start_date').value,
-    end_date: endDate,
+    start_date: ddmmyyyyToYyyymmdd(startDateRaw),
+    end_date: ddmmyyyyToYyyymmdd(endDateRaw),
     policy_term: document.getElementById('ed_policy_term').value,
     commission_type: commTypeState.ed,
     commission_value: Number(document.getElementById(commTypeState.ed === 'percentage' ? 'ed_comm_pct' : 'ed_comm_direct').value) || 0,
@@ -1293,7 +1408,7 @@ function buildFamilyCard(prefix, idx, defaultType, existing) {
         </div>
         <div class="form-group">
           <label class="form-label">Date of Birth</label>
-          <input type="date" class="form-input" id="${prefix}_mdob_${idx}" value="${existing.dob||''}">
+          <input type="text" class="form-input date-mask" id="${prefix}_mdob_${idx}" value="${yyyymmddToDdmmyyyy(existing.dob||'')}" placeholder="DD-MM-YYYY" maxlength="10">
         </div>
       </div>
       <div class="form-grid-3">
@@ -1332,7 +1447,7 @@ function collectFamilyCards(prefix) {
     members.push({
       type,
       name: (document.getElementById(`${prefix}_mname_${i}`) || {}).value || '',
-      dob: (document.getElementById(`${prefix}_mdob_${i}`) || {}).value || '',
+      dob: ddmmyyyyToYyyymmdd((document.getElementById(`${prefix}_mdob_${i}`) || {}).value || ''),
       gender: (document.getElementById(`${prefix}_mgender_${i}`) || {}).value || 'male',
       height: (document.getElementById(`${prefix}_mheight_${i}`) || {}).value || '',
       weight: (document.getElementById(`${prefix}_mweight_${i}`) || {}).value || '',
@@ -1394,8 +1509,8 @@ function calcPolicyTerm(prefix) {
   const end = document.getElementById(`${prefix}_end_date`).value;
   const termEl = document.getElementById(`${prefix}_policy_term`);
   if (!start || !end || !termEl) return;
-  const s = new Date(start), e = new Date(end);
-  if (isNaN(s) || isNaN(e) || e <= s) { termEl.value = ''; return; }
+  const s = parseDateString(start), e = parseDateString(end);
+  if (!s || !e || e <= s) { termEl.value = ''; return; }
   const diffMs = e - s;
   const diffDays = Math.round(diffMs / 86400000);
   const diffMonths = Math.round(diffMs / (30.44 * 86400000));
