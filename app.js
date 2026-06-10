@@ -10,7 +10,7 @@
 // ══════════════════════════════════════════════════════════════
 const MASTER_PASSWORD = 'shrey@2711';
 const DB_NAME = 'GICPortalDB_v2';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'clients';
 const WA_TEMPLATE_KEY = 'gic_wa_template';
 const FIREBASE_CONFIG_KEY = 'gic_firebase_config';
@@ -18,12 +18,15 @@ const DEFAULT_COLLECTION = 'gic_policies';
 
 let DATA = [];           // All client records
 let filteredData = [];   // Currently displayed records
+let CLAIMS = [];         // All claim records
+let filteredClaims = []; // Filtered claim records
 let activeStatusFilter = 'all';
 let dbInstance = null;
 let firebaseApp = null;
 let firestoreDb = null;
 let cloudSyncActive = false;
 let firestoreUnsubscribe = null;
+let firestoreClaimsUnsubscribe = null;
 let expandedRows = new Set();
 let commTypeState = { ac: 'direct', ed: 'direct' };
 
@@ -315,11 +318,15 @@ function initDatabase() {
     if (!db.objectStoreNames.contains(STORE_NAME)) {
       db.createObjectStore(STORE_NAME, { keyPath: 'id' });
     }
+    if (!db.objectStoreNames.contains('claims')) {
+      db.createObjectStore('claims', { keyPath: 'id' });
+    }
   };
   req.onsuccess = function(e) {
     dbInstance = e.target.result;
     logActivity('🗄️ Local database connected', 'info');
     loadAllFromDB();
+    loadClaimsFromDB();
   };
   req.onerror = function() {
     logActivity('❌ Database error — using memory only', 'error');
@@ -344,9 +351,13 @@ function loadAllFromDB() {
 
 function injectSampleData() {
   DATA = JSON.parse(JSON.stringify(SAMPLE_CLIENTS));
+  CLAIMS = JSON.parse(JSON.stringify(SAMPLE_CLAIMS));
   saveAllToDB(() => {
-    logActivity('✨ Sample data loaded — 10 test clients added', 'success');
-    applyFiltersAndStats();
+    saveClaimsToDB(() => {
+      logActivity('✨ Sample data loaded — 10 test clients and 2 claims added', 'success');
+      applyFiltersAndStats();
+      renderClaimsTable();
+    });
   });
 }
 
@@ -429,6 +440,7 @@ function connectCloud() {
     firestoreDb.collection(collection).limit(1).get().then(() => {
       cloudSyncActive = true;
       startRealtimeSync(collection);
+      startRealtimeClaimsSync();
       document.getElementById('cloudConnectStatus').textContent = '✅ Connected successfully!';
       document.getElementById('disconnectBtn').style.display = '';
       updateSyncUI('connected');
@@ -479,8 +491,23 @@ function startRealtimeSync(collection) {
   });
 }
 
+function startRealtimeClaimsSync() {
+  if (firestoreClaimsUnsubscribe) firestoreClaimsUnsubscribe();
+  firestoreClaimsUnsubscribe = firestoreDb.collection('gic_claims').onSnapshot(snapshot => {
+    const cloudClaims = [];
+    snapshot.forEach(doc => {
+      cloudClaims.push({ ...doc.data(), id: doc.id });
+    });
+    CLAIMS = cloudClaims;
+    saveClaimsToDB();
+    renderClaimsTable();
+    logActivity(`☁️ Claims sync: ${cloudClaims.length} records received`, 'info');
+  });
+}
+
 function disconnectCloud() {
   if (firestoreUnsubscribe) { firestoreUnsubscribe(); firestoreUnsubscribe = null; }
+  if (firestoreClaimsUnsubscribe) { firestoreClaimsUnsubscribe(); firestoreClaimsUnsubscribe = null; }
   cloudSyncActive = false;
   firebaseApp = null; firestoreDb = null;
   localStorage.removeItem(FIREBASE_CONFIG_KEY);
@@ -849,20 +876,30 @@ document.addEventListener('keydown', function(e) {
 // ══════════════════════════════════════════════════════════════
 function switchView(view) {
   const regView = document.getElementById('registerView');
+  const claimView = document.getElementById('claimsView');
   const anaView = document.getElementById('analyticsView');
   const tabReg = document.getElementById('tabRegister');
+  const tabClaim = document.getElementById('tabClaims');
   const tabAna = document.getElementById('tabAnalytics');
+
+  // Hide all
+  regView.classList.add('hidden');
+  claimView.classList.add('hidden');
+  anaView.classList.add('hidden');
+  tabReg.classList.remove('active');
+  tabClaim.classList.remove('active');
+  tabAna.classList.remove('active');
 
   if (view === 'register') {
     regView.classList.remove('hidden');
-    anaView.classList.add('hidden');
     tabReg.classList.add('active');
-    tabAna.classList.remove('active');
+  } else if (view === 'claims') {
+    claimView.classList.remove('hidden');
+    tabClaim.classList.add('active');
+    renderClaimsTable();
   } else {
-    regView.classList.add('hidden');
     anaView.classList.remove('hidden');
     tabAna.classList.add('active');
-    tabReg.classList.remove('active');
     renderAnalytics();
   }
 }
@@ -879,13 +916,22 @@ function applyFiltersAndStats() {
   const enriched = DATA.map(c => ({ ...c, _days: daysLeft(c.end_date) }));
 
   // Compute stats (all records, no status filter)
-  let totalPremium = 0, totalComm = 0, active = 0, expired = 0, days15 = 0, days7 = 0, days3 = 0;
+  let totalPremium = 0, totalComm = 0, active = 0, expired = 0, days15 = 0, days7 = 0, days3 = 0, expiredToday = 0;
   enriched.forEach(c => {
-    if (c._days >= 0) { totalPremium += Number(c.premium_amount) || 0; totalComm += Number(c.commission_amount) || 0; active++; }
-    else expired++;
-    if (c._days >= 0 && c._days <= 15) days15++;
-    if (c._days >= 0 && c._days <= 7) days7++;
+    if (c._days >= 0) {
+      totalPremium += Number(c.premium_amount) || 0;
+      totalComm += Number(c.commission_amount) || 0;
+      active++;
+    } else {
+      expired++;
+    }
+
+    if (c._days === 0) expiredToday++;
+
+    // Exclusive ranges
     if (c._days >= 0 && c._days <= 3) days3++;
+    else if (c._days >= 4 && c._days <= 7) days7++;
+    else if (c._days >= 8 && c._days <= 15) days15++;
   });
 
   document.getElementById('statTotalPremium').textContent = formatCurrency(totalPremium);
@@ -895,8 +941,8 @@ function applyFiltersAndStats() {
   document.getElementById('stat15Days').textContent = days15;
   document.getElementById('stat7Days').textContent = days7;
   document.getElementById('stat3Days').textContent = days3;
-  document.getElementById('statActive').textContent = active;
-  document.getElementById('statExpiredSub').textContent = `${expired} expired`;
+  document.getElementById('statExpiredToday').textContent = expiredToday;
+  document.getElementById('statExpiredSub').textContent = `${expired} total expired`;
 
   // Filter
   filteredData = enriched.filter(c => {
@@ -904,8 +950,8 @@ function applyFiltersAndStats() {
     if (activeStatusFilter === 'expired' && c._days >= 0) return false;
     if (activeStatusFilter === 'today' && c._days !== 0) return false;
     if (activeStatusFilter === '3' && (c._days < 0 || c._days > 3)) return false;
-    if (activeStatusFilter === '7' && (c._days < 0 || c._days > 7)) return false;
-    if (activeStatusFilter === '15' && (c._days < 0 || c._days > 15)) return false;
+    if (activeStatusFilter === '7' && (c._days < 4 || c._days > 7)) return false;
+    if (activeStatusFilter === '15' && (c._days < 8 || c._days > 15)) return false;
 
     // Month filter (on end_date month)
     if (selectedMonth !== 'all') {
@@ -1019,6 +1065,9 @@ function renderTable() {
           <button class="action-btn wa ${client.wa_sent ? 'sent' : ''}" title="Send WhatsApp Reminder" onclick="sendWhatsApp('${client.id}')">
             <i class="fa-brands fa-whatsapp"></i>
           </button>
+          <button class="action-btn renew" title="Renew Policy" onclick="openRenewModal('${client.id}')">
+            <i class="fa-solid fa-arrows-rotate"></i>
+          </button>
           <button class="action-btn family ${isExpanded ? 'active' : ''}" title="Show/Hide Family Members" onclick="toggleFamilyRow('${client.id}')">
             <i class="fa-solid fa-people-group"></i>
           </button>
@@ -1114,14 +1163,15 @@ function escapeHtml(str) {
 // ADD CLIENT
 // ══════════════════════════════════════════════════════════════
 function openAddClientModal() {
+  const titleEl = document.getElementById('addClientModalTitle');
+  if (titleEl) titleEl.textContent = 'Add New Client';
   // Reset all fields
-  ['ac_name','ac_mobile','ac_email','ac_address','ac_plan','ac_policy_no','ac_premium_amount','ac_plan_amount','ac_fitness'].forEach(id => {
+  ['ac_name','ac_mobile','ac_email','ac_address','ac_plan','ac_policy_no','ac_plan_amount','ac_fitness'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('ac_profession').value = '';
   document.getElementById('ac_provider').value = '';
   document.getElementById('ac_providerOtherGroup').style.display = 'none';
-  document.getElementById('ac_premium_mode').value = 'yearly';
   document.getElementById('ac_start_date').value = '';
   document.getElementById('ac_end_date').value = '';
   document.getElementById('ac_policy_term').value = '';
@@ -1133,7 +1183,7 @@ function openAddClientModal() {
   document.getElementById('ac_policy_doc').value = '';
   document.getElementById('ac_kyc_preview').textContent = 'No files selected';
   document.getElementById('ac_policy_preview').textContent = 'No file selected';
-  setCommType('ac', 'direct');
+  setCommType('ac', 'percentage');
   updateFamilyCards('ac');
   openModal('addClientOverlay');
   document.getElementById('ac_name').focus();
@@ -1145,11 +1195,11 @@ async function submitAddClient() {
   const providerSel = document.getElementById('ac_provider').value;
   const provider = providerSel === '__other__' ? document.getElementById('ac_providerOther').value.trim() : providerSel;
   const plan = document.getElementById('ac_plan').value.trim();
-  const premiumAmount = document.getElementById('ac_premium_amount').value;
+  const planAmount = document.getElementById('ac_plan_amount').value;
   const startDateRaw = document.getElementById('ac_start_date').value.trim();
   const endDateRaw = document.getElementById('ac_end_date').value.trim();
 
-  if (!name || !mobile || !provider || !plan || !premiumAmount || !endDateRaw) {
+  if (!name || !mobile || !provider || !plan || !planAmount || !endDateRaw) {
     showToast('Please fill all required (*) fields', 'error'); return;
   }
 
@@ -1201,10 +1251,10 @@ async function submitAddClient() {
     profession: document.getElementById('ac_profession').value,
     provider,
     plan,
-    plan_amount: Number(document.getElementById('ac_plan_amount').value) || 0,
+    plan_amount: Number(planAmount) || 0,
     policy_no: document.getElementById('ac_policy_no').value.trim(),
-    premium_mode: document.getElementById('ac_premium_mode').value,
-    premium_amount: Number(premiumAmount),
+    premium_mode: 'yearly',
+    premium_amount: Number(planAmount) || 0,
     start_date: ddmmyyyyToYyyymmdd(startDateRaw),
     end_date: ddmmyyyyToYyyymmdd(endDateRaw),
     policy_term: document.getElementById('ac_policy_term').value,
@@ -1278,14 +1328,12 @@ function openEditModal(clientId) {
   document.getElementById('ed_plan').value = client.plan || '';
   document.getElementById('ed_plan_amount').value = client.plan_amount || '';
   document.getElementById('ed_policy_no').value = client.policy_no || '';
-  document.getElementById('ed_premium_mode').value = client.premium_mode || 'yearly';
-  document.getElementById('ed_premium_amount').value = client.premium_amount || '';
   document.getElementById('ed_start_date').value = yyyymmddToDdmmyyyy(client.start_date || '');
   document.getElementById('ed_end_date').value = yyyymmddToDdmmyyyy(client.end_date || '');
   document.getElementById('ed_policy_term').value = client.policy_term || '';
 
   // Commission
-  setCommType('ed', client.commission_type || 'direct');
+  setCommType('ed', client.commission_type || 'percentage');
   if (client.commission_type === 'percentage') {
     document.getElementById('ed_comm_pct').value = client.commission_value || '';
     document.getElementById('ed_comm_calc').textContent = (client.commission_amount || 0).toLocaleString('en-IN');
@@ -1319,11 +1367,11 @@ async function submitEditClient() {
   const providerSel = document.getElementById('ed_provider').value;
   const provider = providerSel === '__other__' ? document.getElementById('ed_providerOther').value.trim() : providerSel;
   const plan = document.getElementById('ed_plan').value.trim();
-  const premiumAmount = document.getElementById('ed_premium_amount').value;
+  const planAmount = document.getElementById('ed_plan_amount').value;
   const startDateRaw = document.getElementById('ed_start_date').value.trim();
   const endDateRaw = document.getElementById('ed_end_date').value.trim();
 
-  if (!name || !mobile || !provider || !plan || !premiumAmount || !endDateRaw) {
+  if (!name || !mobile || !provider || !plan || !planAmount || !endDateRaw) {
     showToast('Please fill all required fields', 'error'); return;
   }
 
@@ -1383,10 +1431,10 @@ async function submitEditClient() {
     address: document.getElementById('ed_address').value.trim(),
     profession: document.getElementById('ed_profession').value,
     provider, plan,
-    plan_amount: Number(document.getElementById('ed_plan_amount').value) || 0,
+    plan_amount: Number(planAmount) || 0,
     policy_no: document.getElementById('ed_policy_no').value.trim(),
-    premium_mode: document.getElementById('ed_premium_mode').value,
-    premium_amount: Number(premiumAmount),
+    premium_mode: 'yearly',
+    premium_amount: Number(planAmount) || 0,
     start_date: ddmmyyyyToYyyymmdd(startDateRaw),
     end_date: ddmmyyyyToYyyymmdd(endDateRaw),
     policy_term: document.getElementById('ed_policy_term').value,
@@ -1441,20 +1489,27 @@ function deleteClient(clientId, clientName) {
 function wipeAllData() {
   const pass = prompt('⚠️ DANGER ZONE\n\nEnter admin password to delete ALL records:');
   if (pass !== MASTER_PASSWORD) { showToast('Incorrect password. Aborted.', 'error'); return; }
-  if (!confirm(`DELETE ALL ${DATA.length} client records?\n\nThis is PERMANENT and cannot be undone!`)) return;
+  if (!confirm(`DELETE ALL ${DATA.length} client records and ${CLAIMS.length} claim records?\n\nThis is PERMANENT and cannot be undone!`)) return;
   const count = DATA.length;
+  const claimCount = CLAIMS.length;
   DATA = [];
+  CLAIMS = [];
   expandedRows.clear();
   saveAllToDB();
+  saveClaimsToDB();
   if (cloudSyncActive && firestoreDb) {
     const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
     firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).get().then(snap => {
       snap.forEach(doc => doc.ref.delete());
     }).catch(() => {});
+    firestoreDb.collection('gic_claims').get().then(snap => {
+      snap.forEach(doc => doc.ref.delete());
+    }).catch(() => {});
   }
   applyFiltersAndStats();
-  showToast(`All ${count} records deleted!`, 'error');
-  logActivity(`💥 ALL RECORDS WIPED: ${count} clients deleted`, 'error');
+  renderClaimsTable();
+  showToast(`All ${count} records and ${claimCount} claims deleted!`, 'error');
+  logActivity(`💥 ALL RECORDS WIPED: ${count} clients and ${claimCount} claims deleted`, 'error');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1592,7 +1647,7 @@ function setCommType(prefix, type) {
 
 function updateCommissionCalc(prefix) {
   if (commTypeState[prefix] !== 'percentage') return;
-  const premium = Number(document.getElementById(`${prefix}_premium_amount`).value) || 0;
+  const premium = Number(document.getElementById(`${prefix}_plan_amount`).value) || 0;
   const pct = Number(document.getElementById(`${prefix}_comm_pct`).value) || 0;
   const calc = Math.round(premium * pct / 100);
   const el = document.getElementById(`${prefix}_comm_calc`);
@@ -1601,7 +1656,7 @@ function updateCommissionCalc(prefix) {
 
 function getCommissionAmount(prefix) {
   if (commTypeState[prefix] === 'percentage') {
-    const premium = Number(document.getElementById(`${prefix}_premium_amount`).value) || 0;
+    const premium = Number(document.getElementById(`${prefix}_plan_amount`).value) || 0;
     const pct = Number(document.getElementById(`${prefix}_comm_pct`).value) || 0;
     return Math.round(premium * pct / 100);
   }
@@ -1783,11 +1838,13 @@ function exportToExcel() {
 // BACKUP & RESTORE
 // ══════════════════════════════════════════════════════════════
 function downloadBackup() {
-  if (DATA.length === 0) { showToast('No data to backup', 'error'); return; }
+  if (DATA.length === 0 && CLAIMS.length === 0) { showToast('No data to backup', 'error'); return; }
   const backup = {
     version: '2.0', exportedAt: new Date().toISOString(),
     totalRecords: DATA.length,
-    data: DATA.map(c => { const copy = { ...c }; delete copy.kyc_docs; delete copy.policy_doc; return copy; })
+    totalClaims: CLAIMS.length,
+    data: DATA.map(c => { const copy = { ...c }; delete copy.kyc_docs; delete copy.policy_doc; return copy; }),
+    claims: CLAIMS
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1796,8 +1853,8 @@ function downloadBackup() {
   a.download = `GIC_Backup_${new Date().toISOString().split('T')[0]}.json`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  showToast(`Backup downloaded: ${DATA.length} records`, 'success');
-  logActivity(`💾 Backup downloaded: ${DATA.length} records`, 'success');
+  showToast(`Backup downloaded: ${DATA.length} records, ${CLAIMS.length} claims`, 'success');
+  logActivity(`💾 Backup downloaded: ${DATA.length} records, ${CLAIMS.length} claims`, 'success');
 }
 
 function restoreBackup(input) {
@@ -1807,13 +1864,17 @@ function restoreBackup(input) {
   reader.onload = function(e) {
     try {
       const backup = JSON.parse(e.target.result);
-      if (!backup.data || !Array.isArray(backup.data)) { showToast('Invalid backup file!', 'error'); return; }
-      if (!confirm(`Restore ${backup.data.length} records from backup?\n\nThis will REPLACE current data!`)) return;
-      DATA = backup.data.map(c => ({ ...c, kyc_docs: [], policy_doc: null }));
+      if ((!backup.data || !Array.isArray(backup.data)) && (!backup.claims || !Array.isArray(backup.claims))) { showToast('Invalid backup file!', 'error'); return; }
+      if (!confirm(`Restore ${backup.data ? backup.data.length : 0} records and ${backup.claims ? backup.claims.length : 0} claims from backup?\n\nThis will REPLACE current data!`)) return;
+      DATA = (backup.data || []).map(c => ({ ...c, kyc_docs: [], policy_doc: null }));
+      CLAIMS = backup.claims || [];
       saveAllToDB(() => {
-        applyFiltersAndStats();
-        showToast(`✅ Restored ${DATA.length} records!`, 'success');
-        logActivity(`⬆️ Backup restored: ${DATA.length} records`, 'success');
+        saveClaimsToDB(() => {
+          applyFiltersAndStats();
+          renderClaimsTable();
+          showToast(`✅ Restored ${DATA.length} records and ${CLAIMS.length} claims!`, 'success');
+          logActivity(`⬆️ Backup restored: ${DATA.length} records and ${CLAIMS.length} claims`, 'success');
+        });
       });
     } catch(err) { showToast('Failed to parse backup file!', 'error'); }
   };
@@ -2036,3 +2097,586 @@ window.addEventListener('DOMContentLoaded', function() {
   logActivity('🚀 GIC Renewal Portal loaded', 'success');
   logActivity(`📅 Today: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`, 'info');
 });
+
+// ══════════════════════════════════════════════════════════════
+// POLICY RENEWAL CLONING
+// ══════════════════════════════════════════════════════════════
+function openRenewModal(clientId) {
+  const client = DATA.find(c => c.id === clientId);
+  if (!client) return;
+
+  // 1. Reset all fields in the Add Client modal first
+  openAddClientModal();
+
+  // 2. Set the modal title to "Renew Policy: [Client Name]"
+  document.getElementById('addClientModalTitle').textContent = `Renew Policy: ${client.name}`;
+
+  // 3. Pre-fill text inputs
+  document.getElementById('ac_name').value = client.name || '';
+  document.getElementById('ac_mobile').value = client.mobile || '';
+  document.getElementById('ac_email').value = client.email || '';
+  document.getElementById('ac_address').value = client.address || '';
+  document.getElementById('ac_profession').value = client.profession || '';
+  document.getElementById('ac_plan').value = client.plan || '';
+  document.getElementById('ac_plan_amount').value = client.plan_amount || '';
+  document.getElementById('ac_policy_no').value = client.policy_no || '';
+
+  // 4. Pre-fill provider selection
+  const providerSelect = document.getElementById('ac_provider');
+  let providerFound = false;
+  for (let opt of providerSelect.options) {
+    if (opt.value === client.provider || opt.text === client.provider) { 
+      opt.selected = true; 
+      providerFound = true; 
+      break; 
+    }
+  }
+  if (!providerFound) {
+    providerSelect.value = '__other__';
+    document.getElementById('ac_providerOtherGroup').style.display = 'flex';
+    document.getElementById('ac_providerOtherGroup').classList.remove('hidden');
+    document.getElementById('ac_providerOther').value = client.provider || '';
+  } else {
+    document.getElementById('ac_providerOtherGroup').style.display = 'none';
+    document.getElementById('ac_providerOtherGroup').classList.add('hidden');
+  }
+
+  // 5. Pre-fill dates (pre-calculate new term dates)
+  if (client.end_date) {
+    const oldEndDate = new Date(client.end_date);
+    if (!isNaN(oldEndDate.getTime())) {
+      // Start Date = old_end_date + 1 day
+      const newStartDate = new Date(oldEndDate);
+      newStartDate.setDate(newStartDate.getDate() + 1);
+
+      // End Date = old_end_date + 1 year
+      const newEndDate = new Date(oldEndDate);
+      newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+
+      // Format as DD-MM-YYYY
+      const startStr = yyyymmddToDdmmyyyy(newStartDate.toISOString().split('T')[0]);
+      const endStr = yyyymmddToDdmmyyyy(newEndDate.toISOString().split('T')[0]);
+
+      document.getElementById('ac_start_date').value = startStr;
+      document.getElementById('ac_end_date').value = endStr;
+      
+      // Calculate policy term
+      calcPolicyTerm('ac');
+    }
+  }
+
+  // 6. Pre-fill commission details
+  setCommType('ac', client.commission_type || 'percentage');
+  if (client.commission_type === 'percentage') {
+    document.getElementById('ac_comm_pct').value = client.commission_value || '';
+    updateCommissionCalc('ac');
+  } else {
+    document.getElementById('ac_comm_direct').value = client.commission_amount || '';
+  }
+
+  // 7. Pre-fill fitness / health notes
+  document.getElementById('ac_fitness').value = client.fitness_details || '';
+
+  // 8. Pre-fill family members
+  document.getElementById('ac_family_count').value = client.family_count || 1;
+  updateFamilyCards('ac', client.family_members);
+}
+
+// ══════════════════════════════════════════════════════════════
+// CLAIMS DATA & DATABASE HELPERS
+// ══════════════════════════════════════════════════════════════
+const SAMPLE_CLAIMS = [
+  {
+    id: 'MMC_CLAIM_SAMPLE_1',
+    client_id: 'MMC_SAMPLE_001',
+    client_name: 'Ramesh Kumar Sharma',
+    claimant_name: 'Sunita Sharma',
+    provider: 'Star Health Insurance',
+    plan: 'Star Comprehensive Family',
+    amount: 45000,
+    status: 'settled',
+    date_applied: '2026-05-10',
+    date_docs_sent: '2026-05-12',
+    date_responded: '2026-05-20',
+    date_approved: '2026-05-22',
+    date_settled: '2026-05-25',
+    notes: 'Hospitalized at Sunshine Hospital for Dengue treatment. Bills settled completely.',
+    created_at: '2026-05-10T10:00:00Z'
+  },
+  {
+    id: 'MMC_CLAIM_SAMPLE_2',
+    client_id: 'MMC_SAMPLE_002',
+    client_name: 'Priya Mehta',
+    claimant_name: 'Aryan Mehta',
+    provider: 'HDFC ERGO Health Insurance',
+    plan: 'HDFC Optima Restore',
+    amount: 18000,
+    status: 'pending',
+    date_applied: '2026-06-01',
+    date_docs_sent: '2026-06-03',
+    date_responded: '',
+    date_approved: '',
+    date_settled: '',
+    notes: 'Claim for tonsils surgery. Documents submitted to TPA.',
+    created_at: '2026-06-01T11:00:00Z'
+  }
+];
+
+function loadClaimsFromDB() {
+  if (!dbInstance) {
+    CLAIMS = JSON.parse(JSON.stringify(SAMPLE_CLAIMS));
+    renderClaimsTable();
+    return;
+  }
+  const tx = dbInstance.transaction(['claims'], 'readonly');
+  const store = tx.objectStore('claims');
+  const req = store.getAll();
+  req.onsuccess = function(e) {
+    CLAIMS = e.target.result || [];
+    if (CLAIMS.length === 0 && DATA.length <= 10) {
+      CLAIMS = JSON.parse(JSON.stringify(SAMPLE_CLAIMS));
+      saveClaimsToDB();
+    }
+    logActivity(`📂 Loaded ${CLAIMS.length} claim records`, 'info');
+    renderClaimsTable();
+  };
+}
+
+function saveClaimsToDB(callback) {
+  if (!dbInstance) { if (callback) callback(); return; }
+  const tx = dbInstance.transaction(['claims'], 'readwrite');
+  const store = tx.objectStore('claims');
+  store.clear().onsuccess = function() {
+    let remaining = CLAIMS.length;
+    if (remaining === 0) { if (callback) callback(); return; }
+    CLAIMS.forEach(item => {
+      const req = store.put(item);
+      req.onsuccess = function() { remaining--; if (remaining === 0 && callback) callback(); };
+      req.onerror = function() { remaining--; if (remaining === 0 && callback) callback(); };
+    });
+  };
+}
+
+function addClaimToDB(item, callback) {
+  if (!dbInstance) { if (callback) callback(); return; }
+  const tx = dbInstance.transaction(['claims'], 'readwrite');
+  tx.objectStore('claims').put(item).onsuccess = function() { if (callback) callback(); };
+}
+
+function updateClaimInDB(item, callback) {
+  if (!dbInstance) { if (callback) callback(); return; }
+  const tx = dbInstance.transaction(['claims'], 'readwrite');
+  tx.objectStore('claims').put(item).onsuccess = function() { if (callback) callback(); };
+}
+
+function deleteClaimFromDB(id, callback) {
+  if (!dbInstance) { if (callback) callback(); return; }
+  const tx = dbInstance.transaction(['claims'], 'readwrite');
+  tx.objectStore('claims').delete(id).onsuccess = function() { if (callback) callback(); };
+}
+
+// ══════════════════════════════════════════════════════════════
+// CLAIMS ACTIONS & RENDER
+// ══════════════════════════════════════════════════════════════
+function updateClaimsStats() {
+  let totalClaimAmt = 0, pendingClaimAmt = 0, settledClaimAmt = 0;
+  let totalCount = CLAIMS.length, pendingCount = 0, settledCount = 0;
+
+  CLAIMS.forEach(c => {
+    const amt = Number(c.amount) || 0;
+    totalClaimAmt += amt;
+    if (c.status === 'settled') {
+      settledClaimAmt += amt;
+      settledCount++;
+    } else if (c.status === 'pending') {
+      pendingClaimAmt += amt;
+      pendingCount++;
+    } else if (c.status === 'approved') {
+      pendingClaimAmt += amt;
+      pendingCount++;
+    }
+  });
+
+  const totalEl = document.getElementById('claimStatTotal');
+  const totalSubEl = document.getElementById('claimStatTotalSub');
+  const pendingEl = document.getElementById('claimStatPending');
+  const pendingSubEl = document.getElementById('claimStatPendingSub');
+  const settledEl = document.getElementById('claimStatSettled');
+  const settledSubEl = document.getElementById('claimStatSettledSub');
+
+  if (totalEl) totalEl.textContent = formatCurrency(totalClaimAmt);
+  if (totalSubEl) totalSubEl.textContent = `${totalCount} claim${totalCount !== 1 ? 's' : ''} logged`;
+  if (pendingEl) pendingEl.textContent = formatCurrency(pendingClaimAmt);
+  if (pendingSubEl) pendingSubEl.textContent = `${pendingCount} pending / approved`;
+  if (settledEl) settledEl.textContent = formatCurrency(settledClaimAmt);
+  if (settledSubEl) settledSubEl.textContent = `${settledCount} settled`;
+}
+
+function applyClaimsFilters() {
+  const query = (document.getElementById('claimSearchInput').value || '').toLowerCase().trim();
+  const statusFilter = document.getElementById('claimStatusFilter').value;
+
+  filteredClaims = CLAIMS.filter(c => {
+    // Status filter
+    if (statusFilter !== 'all' && c.status !== statusFilter) return false;
+
+    // Search query
+    if (query) {
+      const searchable = [
+        c.client_name || '',
+        c.claimant_name || '',
+        c.notes || '',
+        c.status || ''
+      ].join(' ').toLowerCase();
+      if (!searchable.includes(query)) return false;
+    }
+    return true;
+  });
+
+  // Sort by date applied descending
+  filteredClaims.sort((a, b) => new Date(b.date_applied) - new Date(a.date_applied));
+
+  const countEl = document.getElementById('claimRecordCount');
+  if (countEl) countEl.textContent = `${filteredClaims.length} claim${filteredClaims.length !== 1 ? 's' : ''}`;
+
+  renderClaimsTableRows();
+}
+
+function renderClaimsTable() {
+  updateClaimsStats();
+  applyClaimsFilters();
+}
+
+function renderClaimsTableRows() {
+  const tbody = document.getElementById('claimsTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (filteredClaims.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🔍</div><h3>No claims found</h3><p>Try adjusting your search or filters</p></div></td></tr>`;
+    return;
+  }
+
+  filteredClaims.forEach((claim, idx) => {
+    const statusClass = claim.status || 'pending';
+    const tr = document.createElement('tr');
+    
+    // Dates timeline markup
+    const timelineHtml = `
+      <div style="font-size:11.5px;line-height:1.4">
+        <strong>Applied:</strong> ${formatDate(claim.date_applied)}<br>
+        ${claim.date_docs_sent ? `<strong>Docs Sent:</strong> ${formatDate(claim.date_docs_sent)}<br>` : ''}
+        ${claim.date_responded ? `<strong>Responded:</strong> ${formatDate(claim.date_responded)}<br>` : ''}
+        ${claim.date_approved ? `<strong>Approved:</strong> ${formatDate(claim.date_approved)}<br>` : ''}
+        ${claim.date_settled ? `<strong>Settled:</strong> ${formatDate(claim.date_settled)}<br>` : ''}
+      </div>
+    `;
+
+    tr.innerHTML = `
+      <td class="sr-num">${idx + 1}</td>
+      <td>
+        <div class="cell-name">
+          <strong>${escapeHtml(claim.client_name)}</strong><br>
+          <small>Claimant: ${escapeHtml(claim.claimant_name)}</small>
+        </div>
+      </td>
+      <td>
+        <div class="cell-plan">
+          <strong>${escapeHtml(claim.plan || '—')}</strong><br>
+          <span class="provider-badge ${getProviderClass(claim.provider)}">${escapeHtml(claim.provider || '—')}</span>
+        </div>
+      </td>
+      <td>
+        <div class="cell-premium">
+          <strong>${formatCurrency(claim.amount)}</strong>
+        </div>
+      </td>
+      <td>
+        <span class="claim-status-badge ${statusClass}">${statusClass}</span>
+      </td>
+      <td>${timelineHtml}</td>
+      <td style="max-width:200px;font-size:12px;color:var(--text-secondary);word-wrap:break-word;white-space:normal;">
+        ${claim.notes ? escapeHtml(claim.notes) : '<span style="color:var(--text-light)">No remarks</span>'}
+      </td>
+      <td>
+        <div class="action-btns">
+          <button class="action-btn edit" title="Edit Claim" onclick="openEditClaimModal('${claim.id}')">
+            <i class="fa-regular fa-pen-to-square"></i>
+          </button>
+          <button class="action-btn delete" title="Delete Claim" onclick="deleteClaim('${claim.id}','${escapeHtml(claim.claimant_name)}')">
+            <i class="fa-regular fa-trash-can"></i>
+          </button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function openLogClaimModal() {
+  document.getElementById('claim_id').value = '';
+  document.getElementById('claimModalTitle').textContent = 'Log New Claim';
+  
+  clearSelectedClaimClient();
+  
+  document.getElementById('claim_amount').value = '';
+  document.getElementById('claim_status').value = 'pending';
+  document.getElementById('claim_dateApplied').value = '';
+  document.getElementById('claim_dateDocsSent').value = '';
+  document.getElementById('claim_dateResponded').value = '';
+  document.getElementById('claim_dateApproved').value = '';
+  document.getElementById('claim_dateSettled').value = '';
+  document.getElementById('claim_notes').value = '';
+  
+  toggleClaimStatusFields();
+  openModal('logClaimOverlay');
+}
+
+function openEditClaimModal(claimId) {
+  const claim = CLAIMS.find(c => c.id === claimId);
+  if (!claim) return;
+
+  document.getElementById('claim_id').value = claim.id;
+  document.getElementById('claimModalTitle').textContent = 'Edit Claim';
+  
+  // Pre-select the client
+  selectClaimClient(claim.client_id, claim.client_name, claim.provider || '', claim.plan || '');
+
+  // Populate claimant dropdown and set selected value
+  const claimantSelect = document.getElementById('claim_claimant');
+  claimantSelect.value = claim.claimant_name;
+
+  document.getElementById('claim_amount').value = claim.amount || '';
+  document.getElementById('claim_status').value = claim.status || 'pending';
+  document.getElementById('claim_dateApplied').value = yyyymmddToDdmmyyyy(claim.date_applied || '');
+  document.getElementById('claim_dateDocsSent').value = yyyymmddToDdmmyyyy(claim.date_docs_sent || '');
+  document.getElementById('claim_dateResponded').value = yyyymmddToDdmmyyyy(claim.date_responded || '');
+  document.getElementById('claim_dateApproved').value = yyyymmddToDdmmyyyy(claim.date_approved || '');
+  document.getElementById('claim_dateSettled').value = yyyymmddToDdmmyyyy(claim.date_settled || '');
+  document.getElementById('claim_notes').value = claim.notes || '';
+
+  toggleClaimStatusFields();
+  openModal('logClaimOverlay');
+}
+
+function toggleClaimStatusFields() {
+  const status = document.getElementById('claim_status').value;
+  const approvedGrp = document.getElementById('claim_dateApprovedGroup');
+  const settledGrp = document.getElementById('claim_dateSettledGroup');
+
+  if (!approvedGrp || !settledGrp) return;
+
+  if (status === 'approved') {
+    approvedGrp.style.display = 'flex';
+    settledGrp.style.display = 'none';
+  } else if (status === 'settled') {
+    approvedGrp.style.display = 'flex';
+    settledGrp.style.display = 'flex';
+  } else {
+    approvedGrp.style.display = 'none';
+    settledGrp.style.display = 'none';
+  }
+}
+
+function searchClaimClients() {
+  const query = document.getElementById('claim_clientSearch').value.toLowerCase().trim();
+  const resultsDiv = document.getElementById('claim_clientSearchResults');
+  if (!resultsDiv) return;
+
+  if (!query) {
+    resultsDiv.innerHTML = '';
+    resultsDiv.classList.remove('visible');
+    return;
+  }
+
+  // Filter clients
+  const matches = DATA.filter(c => 
+    c.name.toLowerCase().includes(query) || 
+    (c.mobile && c.mobile.includes(query))
+  ).slice(0, 5);
+
+  if (matches.length === 0) {
+    resultsDiv.innerHTML = `<div class="client-result-item" style="cursor:default;color:var(--text-light)">No clients found</div>`;
+  } else {
+    resultsDiv.innerHTML = matches.map(c => `
+      <div class="client-result-item" onclick="selectClaimClient('${c.id}', '${escapeHtml(c.name)}', '${escapeHtml(c.provider || '')}', '${escapeHtml(c.plan || '')}')">
+        <div class="flex-col">
+          <div class="cri-name">${escapeHtml(c.name)}</div>
+          <div class="cri-detail">${escapeHtml(c.provider || '')} | ${escapeHtml(c.plan || '')} | ${c.mobile || ''}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+  resultsDiv.classList.add('visible');
+}
+
+function selectClaimClient(clientId, clientName, provider, plan) {
+  document.getElementById('claim_clientId').value = clientId;
+  document.getElementById('claim_selectedClientName').textContent = clientName;
+  document.getElementById('claim_selectedClientDetail').textContent = `${provider} | ${plan}`;
+
+  // Hide search and show selected client card
+  document.getElementById('claim_searchGroup').classList.add('hidden');
+  document.getElementById('claim_selectedClientGroup').classList.remove('hidden');
+
+  // Clear search results
+  const resultsDiv = document.getElementById('claim_clientSearchResults');
+  if (resultsDiv) {
+    resultsDiv.innerHTML = '';
+    resultsDiv.classList.remove('visible');
+  }
+
+  // Populate claimant select dropdown
+  const claimantSelect = document.getElementById('claim_claimant');
+  claimantSelect.innerHTML = '<option value="">Select member</option>';
+
+  const client = DATA.find(c => c.id === clientId);
+  if (client) {
+    // Add "Self"
+    const selfOpt = document.createElement('option');
+    selfOpt.value = client.name;
+    selfOpt.textContent = `${client.name} (Self)`;
+    claimantSelect.appendChild(selfOpt);
+
+    // Add family members
+    if (client.family_members && client.family_members.length > 0) {
+      client.family_members.forEach(m => {
+        if (m.name && m.name !== client.name) {
+          const opt = document.createElement('option');
+          opt.value = m.name;
+          const relation = m.type === 'other' ? (m.other_label || 'Relative') : getMemberTypeLabel(m.type);
+          opt.textContent = `${m.name} (${relation})`;
+          claimantSelect.appendChild(opt);
+        }
+      });
+    }
+  }
+}
+
+function clearSelectedClaimClient() {
+  document.getElementById('claim_clientId').value = '';
+  document.getElementById('claim_clientSearch').value = '';
+  document.getElementById('claim_searchGroup').classList.remove('hidden');
+  document.getElementById('claim_selectedClientGroup').classList.add('hidden');
+
+  const claimantSelect = document.getElementById('claim_claimant');
+  claimantSelect.innerHTML = '<option value="">Select member</option>';
+}
+
+async function submitLogClaim() {
+  const claimIdInput = document.getElementById('claim_id');
+  const clientId = document.getElementById('claim_clientId').value;
+  const claimantName = document.getElementById('claim_claimant').value;
+  const amount = document.getElementById('claim_amount').value;
+  const status = document.getElementById('claim_status').value;
+  const dateAppliedRaw = document.getElementById('claim_dateApplied').value.trim();
+  const dateDocsSentRaw = document.getElementById('claim_dateDocsSent').value.trim();
+  const dateRespondedRaw = document.getElementById('claim_dateResponded').value.trim();
+  const dateApprovedRaw = document.getElementById('claim_dateApproved').value.trim();
+  const dateSettledRaw = document.getElementById('claim_dateSettled').value.trim();
+  const notes = document.getElementById('claim_notes').value.trim();
+
+  if (!clientId || !claimantName || !amount || !dateAppliedRaw) {
+    showToast('Please fill all required (*) fields', 'error');
+    return;
+  }
+
+  // Validate dates
+  if (!isValidDateString(dateAppliedRaw)) {
+    showToast('Please enter a valid Date Applied in DD-MM-YYYY format', 'error'); return;
+  }
+  if (dateDocsSentRaw && !isValidDateString(dateDocsSentRaw)) {
+    showToast('Please enter a valid Date Docs Sent in DD-MM-YYYY format', 'error'); return;
+  }
+  if (dateRespondedRaw && !isValidDateString(dateRespondedRaw)) {
+    showToast('Please enter a valid Response Date in DD-MM-YYYY format', 'error'); return;
+  }
+  if (status === 'approved' || status === 'settled') {
+    if (!dateApprovedRaw) {
+      showToast('Please enter an Approval Date', 'error'); return;
+    }
+    if (!isValidDateString(dateApprovedRaw)) {
+      showToast('Please enter a valid Approval Date in DD-MM-YYYY format', 'error'); return;
+    }
+  }
+  if (status === 'settled') {
+    if (!dateSettledRaw) {
+      showToast('Please enter a Settlement Date', 'error'); return;
+    }
+    if (!isValidDateString(dateSettledRaw)) {
+      showToast('Please enter a valid Settlement Date in DD-MM-YYYY format', 'error'); return;
+    }
+  }
+
+  const client = DATA.find(c => c.id === clientId);
+  if (!client) {
+    showToast('Selected client not found', 'error');
+    return;
+  }
+
+  const isEdit = !!claimIdInput.value;
+  const id = isEdit ? claimIdInput.value : 'CLAIM_' + Date.now().toString(36).toUpperCase() + '_' + Math.random().toString(36).substr(2,6).toUpperCase();
+
+  const claimEntry = {
+    id,
+    client_id: clientId,
+    client_name: client.name,
+    provider: client.provider || '',
+    plan: client.plan || '',
+    claimant_name: claimantName,
+    amount: Number(amount) || 0,
+    status,
+    date_applied: ddmmyyyyToYyyymmdd(dateAppliedRaw),
+    date_docs_sent: dateDocsSentRaw ? ddmmyyyyToYyyymmdd(dateDocsSentRaw) : '',
+    date_responded: dateRespondedRaw ? ddmmyyyyToYyyymmdd(dateRespondedRaw) : '',
+    date_approved: dateApprovedRaw ? ddmmyyyyToYyyymmdd(dateApprovedRaw) : '',
+    date_settled: dateSettledRaw ? ddmmyyyyToYyyymmdd(dateSettledRaw) : '',
+    notes,
+    updated_at: new Date().toISOString()
+  };
+
+  if (!isEdit) {
+    claimEntry.created_at = new Date().toISOString();
+  } else {
+    const old = CLAIMS.find(c => c.id === id);
+    if (old) claimEntry.created_at = old.created_at || new Date().toISOString();
+  }
+
+  // Firestore Sync
+  if (cloudSyncActive && firestoreDb) {
+    const docRef = firestoreDb.collection('gic_claims').doc(claimEntry.id);
+    docRef.set(claimEntry).then(() => {
+      showToast('Claim synced to cloud!', 'success');
+    }).catch(() => showToast('Cloud sync failed, saved locally', 'error'));
+  }
+
+  if (isEdit) {
+    const idx = CLAIMS.findIndex(c => c.id === id);
+    if (idx !== -1) CLAIMS[idx] = claimEntry;
+    updateClaimInDB(claimEntry);
+    showToast('Claim updated successfully!', 'success');
+    logActivity(`✏️ Claim updated: ${claimantName} (₹${amount})`, 'info');
+  } else {
+    CLAIMS.push(claimEntry);
+    addClaimToDB(claimEntry);
+    showToast('Claim logged successfully!', 'success');
+    logActivity(`➕ Claim logged: ${claimantName} (₹${amount})`, 'success');
+  }
+
+  renderClaimsTable();
+  closeModal('logClaimOverlay');
+}
+
+function deleteClaim(claimId, claimantName) {
+  if (!confirm(`Delete claim for claimant "${claimantName}"?\n\nThis cannot be undone.`)) return;
+  const idx = CLAIMS.findIndex(c => c.id === claimId);
+  if (idx === -1) return;
+  CLAIMS.splice(idx, 1);
+  deleteClaimFromDB(claimId);
+  if (cloudSyncActive && firestoreDb) {
+    firestoreDb.collection('gic_claims').doc(claimId).delete().catch(() => {});
+  }
+  renderClaimsTable();
+  showToast(`Deleted claim: ${claimantName}`, 'info');
+  logActivity(`🗑️ Deleted claim: ${claimantName}`, 'error');
+}

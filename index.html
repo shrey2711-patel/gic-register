@@ -192,11 +192,11 @@
           <div class="stat-value" id="stat3Days">0</div>
           <div class="stat-sub">urgent action required</div>
         </div>
-        <div class="stat-badge" style="--badge-color:var(--emerald);--badge-color-dim:var(--emerald-dim)">
-          <div class="stat-icon"><i class="fa-solid fa-shield-check"></i></div>
-          <div class="stat-label">Active Policy Count</div>
-          <div class="stat-value" id="statActive">0</div>
-          <div class="stat-sub" id="statExpiredSub">0 expired</div>
+        <div class="stat-badge" style="--badge-color:var(--danger);--badge-color-dim:var(--danger-dim)">
+          <div class="stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <div class="stat-label">Expired Today</div>
+          <div class="stat-value" id="statExpiredToday">0</div>
+          <div class="stat-sub" id="statExpiredSub">0 total expired</div>
         </div>
       </div>
 
@@ -204,6 +204,9 @@
       <div class="view-tabs">
         <button class="view-tab active" id="tabRegister" onclick="switchView('register')">
           <i class="fa-solid fa-table-list"></i> Register
+        </button>
+        <button class="view-tab" id="tabClaims" onclick="switchView('claims')">
+          <i class="fa-solid fa-file-invoice-dollar"></i> Claims
         </button>
         <button class="view-tab" id="tabAnalytics" onclick="switchView('analytics')">
           <i class="fa-solid fa-chart-pie"></i> Analytics
@@ -280,6 +283,79 @@
 
       </div><!-- end registerView -->
 
+      <!-- ───── CLAIMS VIEW ───── -->
+      <div id="claimsView" class="hidden">
+
+        <!-- Claims Stats -->
+        <div class="stats-strip" style="margin-bottom: 20px;">
+          <div class="stat-badge" style="--badge-color:var(--primary);--badge-color-dim:var(--primary-dim)">
+            <div class="stat-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+            <div class="stat-label">Total Claims</div>
+            <div class="stat-value" id="claimStatTotal">₹0</div>
+            <div class="stat-sub" id="claimStatTotalSub">0 claims logged</div>
+          </div>
+          <div class="stat-badge" style="--badge-color:var(--warning);--badge-color-dim:var(--warning-dim)">
+            <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
+            <div class="stat-label">Pending Claims</div>
+            <div class="stat-value" id="claimStatPending">₹0</div>
+            <div class="stat-sub" id="claimStatPendingSub">0 pending</div>
+          </div>
+          <div class="stat-badge" style="--badge-color:var(--emerald);--badge-color-dim:var(--emerald-dim)">
+            <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="stat-label">Settled Claims</div>
+            <div class="stat-value" id="claimStatSettled">₹0</div>
+            <div class="stat-sub" id="claimStatSettledSub">0 settled</div>
+          </div>
+        </div>
+
+        <!-- Claims Controls -->
+        <div class="register-controls" style="margin-bottom: 15px;">
+          <div class="controls-row">
+            <div class="search-wrap">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" class="search-input" id="claimSearchInput"
+                placeholder="Search claims by client or claimant name..."
+                oninput="applyClaimsFilters()">
+            </div>
+            <select class="filter-select" id="claimStatusFilter" onchange="applyClaimsFilters()">
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="settled">Settled</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <button class="btn btn-primary" onclick="openLogClaimModal()">
+              <i class="fa-solid fa-plus"></i> Log New Claim
+            </button>
+            <span class="record-count" id="claimRecordCount">0 claims</span>
+          </div>
+        </div>
+
+        <!-- Claims Table -->
+        <div class="table-card">
+          <div class="table-scroll">
+            <table id="claimsTable">
+              <thead>
+                <tr>
+                  <th>Sr</th>
+                  <th>Client & Claimant</th>
+                  <th>Plan & Provider</th>
+                  <th>Claim Amount</th>
+                  <th>Status</th>
+                  <th>Dates Timeline</th>
+                  <th>Remarks</th>
+                  <th style="min-width:100px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="claimsTableBody">
+                <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><h3>No claims logged</h3><p>Click "Log New Claim" to get started</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- end claimsView -->
+
       <!-- ───── ANALYTICS VIEW ───── -->
       <div id="analyticsView" class="hidden">
 
@@ -351,7 +427,7 @@
       <div class="modal-header-left">
         <div class="modal-header-icon blue"><i class="fa-solid fa-user-plus"></i></div>
         <div>
-          <div class="modal-title">Add New Client</div>
+          <div class="modal-title" id="addClientModalTitle">Add New Client</div>
           <div class="modal-subtitle">Register a new insurance client profile</div>
         </div>
       </div>
@@ -437,31 +513,15 @@
             <input type="text" class="form-input" id="ac_plan" placeholder="e.g. Star Comprehensive, HDFC Optima Restore">
           </div>
           <div class="form-group">
-            <label class="form-label">Sum Insured / Plan Amount (₹)</label>
+            <label class="form-label">Plan Amount (Premium) (₹) <span class="required">*</span></label>
             <div class="form-input-prefix">
               <span>₹</span>
-              <input type="number" class="form-input" id="ac_plan_amount" placeholder="e.g. 500000">
+              <input type="number" class="form-input" id="ac_plan_amount" placeholder="e.g. 500000" oninput="updateCommissionCalc('ac')">
             </div>
           </div>
           <div class="form-group">
             <label class="form-label">Policy Number</label>
             <input type="text" class="form-input" id="ac_policy_no" placeholder="e.g. P/181323/01/2026/001234">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Premium Payment Mode <span class="required">*</span></label>
-            <select class="form-select" id="ac_premium_mode">
-              <option value="yearly">Yearly (Annual)</option>
-              <option value="half_yearly">Half-Yearly (6 Months)</option>
-              <option value="quarterly">Quarterly (3 Months)</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Premium Amount (₹) <span class="required">*</span></label>
-            <div class="form-input-prefix">
-              <span>₹</span>
-              <input type="number" class="form-input" id="ac_premium_amount" placeholder="0" oninput="updateCommissionCalc('ac')">
-            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Policy Start Date <span class="required">*</span></label>
@@ -652,29 +712,14 @@
             <input type="text" class="form-input" id="ed_plan">
           </div>
           <div class="form-group">
-            <label class="form-label">Sum Insured (₹)</label>
+            <label class="form-label">Plan Amount (Premium) (₹) <span class="required">*</span></label>
             <div class="form-input-prefix"><span>₹</span>
-              <input type="number" class="form-input" id="ed_plan_amount">
+              <input type="number" class="form-input" id="ed_plan_amount" oninput="updateCommissionCalc('ed')">
             </div>
           </div>
           <div class="form-group">
             <label class="form-label">Policy Number</label>
             <input type="text" class="form-input" id="ed_policy_no">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Premium Mode</label>
-            <select class="form-select" id="ed_premium_mode">
-              <option value="yearly">Yearly</option>
-              <option value="half_yearly">Half-Yearly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Premium Amount (₹) <span class="required">*</span></label>
-            <div class="form-input-prefix"><span>₹</span>
-              <input type="number" class="form-input" id="ed_premium_amount" oninput="updateCommissionCalc('ed')">
-            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Start Date</label>
@@ -893,6 +938,121 @@
       <button class="btn btn-secondary" onclick="closeModal('viewClientOverlay')">Close</button>
       <button class="btn btn-primary" id="viewEditBtn" onclick="closeModal('viewClientOverlay')">
         <i class="fa-solid fa-pen-to-square"></i> Edit Client
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 7. LOG CLAIM MODAL ── -->
+<div class="modal-overlay" id="logClaimOverlay">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div class="modal-header-icon purple"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+        <div>
+          <div class="modal-title" id="claimModalTitle">Log New Claim</div>
+          <div class="modal-subtitle" id="claimModalSubtitle">Track client insurance claim timeline</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal('logClaimOverlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="claim_id">
+
+      <!-- Section 1: Client Selection -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-user"></i> Client Selection</div>
+        <div class="form-grid">
+          <div class="form-group" id="claim_searchGroup">
+            <label class="form-label">Search Client <span class="required">*</span></label>
+            <input type="text" class="form-input" id="claim_clientSearch" placeholder="Type client name or mobile..." oninput="searchClaimClients()">
+            <div class="client-search-results" id="claim_clientSearchResults"></div>
+          </div>
+          
+          <div class="form-group hidden" id="claim_selectedClientGroup">
+            <label class="form-label">Selected Client</label>
+            <div class="selected-client-card">
+              <div class="flex-col" style="flex:1">
+                <strong id="claim_selectedClientName">Client Name</strong>
+                <span id="claim_selectedClientDetail" class="text-xs text-muted">Provider | Plan</span>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="clearSelectedClaimClient()">Change</button>
+            </div>
+            <input type="hidden" id="claim_clientId">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Claimant / Member <span class="required">*</span></label>
+            <select class="form-select" id="claim_claimant">
+              <option value="">Select member</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Claim Details -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-file-contract"></i> Claim Information</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Claim Amount (₹) <span class="required">*</span></label>
+            <div class="form-input-prefix">
+              <span>₹</span>
+              <input type="number" class="form-input" id="claim_amount" placeholder="e.g. 50000">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status <span class="required">*</span></label>
+            <select class="form-select" id="claim_status" onchange="toggleClaimStatusFields()">
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="settled">Settled</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Timeline Dates -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-calendar-days"></i> Dates Timeline</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Date Applied to Co. <span class="required">*</span></label>
+            <input type="text" class="form-input date-mask" id="claim_dateApplied" placeholder="DD-MM-YYYY" maxlength="10">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date Docs & Bills Sent</label>
+            <input type="text" class="form-input date-mask" id="claim_dateDocsSent" placeholder="DD-MM-YYYY" maxlength="10">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Company Response Date</label>
+            <input type="text" class="form-input date-mask" id="claim_dateResponded" placeholder="DD-MM-YYYY" maxlength="10">
+          </div>
+          <div class="form-group" id="claim_dateApprovedGroup">
+            <label class="form-label">Approval Date</label>
+            <input type="text" class="form-input date-mask" id="claim_dateApproved" placeholder="DD-MM-YYYY" maxlength="10">
+          </div>
+          <div class="form-group" id="claim_dateSettledGroup">
+            <label class="form-label">Settlement Date (Credit to Account)</label>
+            <input type="text" class="form-input date-mask" id="claim_dateSettled" placeholder="DD-MM-YYYY" maxlength="10">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Notes -->
+      <div class="form-section">
+        <div class="form-section-title"><i class="fa-solid fa-note-sticky"></i> Remarks</div>
+        <div class="form-group">
+          <textarea class="form-textarea" id="claim_notes" placeholder="Enter diagnosis details, queries raised by company, hospital name..." rows="3"></textarea>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('logClaimOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitLogClaim()" id="claimSubmitBtn">
+        <i class="fa-solid fa-floppy-disk"></i> Save Claim
       </button>
     </div>
   </div>
