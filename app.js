@@ -1002,23 +1002,54 @@ function applyFiltersAndStats() {
     if (c._isFuture) {
       return; // Skip future policies for active/expired statistics
     }
-    if (c._isRenewed) {
-      return; // Skip renewed policies for active/expired statistics, as they are superseded by new ones
-    }
+
+    let isActive = false;
     if (c._days >= 0) {
+      if (c._isRenewed) {
+        // Find if any newer counterpart has started
+        const newerActive = enriched.some(other => {
+          if (other.id === c.id) return false;
+          const hasSamePolicyNo = c.policy_no && other.policy_no && 
+                                  c.policy_no.trim() !== '' && 
+                                  c.policy_no.trim().toLowerCase() === other.policy_no.trim().toLowerCase();
+          const hasSameClientAndPlan = (!c.policy_no || !other.policy_no || c.policy_no.trim() === '' || other.policy_no.trim() === '') &&
+                                        c.name && other.name &&
+                                        c.name.trim().toLowerCase() === other.name.trim().toLowerCase() &&
+                                        c.provider && other.provider &&
+                                        c.provider.trim().toLowerCase() === other.provider.trim().toLowerCase() &&
+                                        c.plan && other.plan &&
+                                        c.plan.trim().toLowerCase() === other.plan.trim().toLowerCase();
+          if (!hasSamePolicyNo && !hasSameClientAndPlan) return false;
+          
+          const cStart = new Date(c.start_date || c.created_at || 0);
+          const otherStart = new Date(other.start_date || other.created_at || 0);
+          return otherStart > cStart && !other._isFuture;
+        });
+        if (!newerActive) {
+          isActive = true; // No newer policy has started yet, old is still active
+        }
+      } else {
+        isActive = true;
+      }
+    }
+
+    if (isActive) {
       totalPremium += Number(c.premium_amount) || 0;
       totalComm += Number(c.commission_amount) || 0;
       active++;
-    } else {
+    } else if (c._days < 0 && !c._isRenewed) {
       expired++;
     }
 
-    if (c._days === 0) expiredToday++;
+    // Alerts and expired counts are for non-renewed policies only
+    if (!c._isRenewed) {
+      if (c._days === 0) expiredToday++;
 
-    // Exclusive ranges
-    if (c._days >= 0 && c._days <= 3) days3++;
-    else if (c._days >= 4 && c._days <= 7) days7++;
-    else if (c._days >= 8 && c._days <= 15) days15++;
+      // Exclusive ranges
+      if (c._days >= 0 && c._days <= 3) days3++;
+      else if (c._days >= 4 && c._days <= 7) days7++;
+      else if (c._days >= 8 && c._days <= 15) days15++;
+    }
   });
 
   document.getElementById('statTotalPremium').textContent = formatCurrency(totalPremium);
@@ -2091,12 +2122,17 @@ function renderForecastChart() {
   if (forecastChartInst) forecastChartInst.destroy();
 
   const yearSel = document.getElementById('forecastYear');
+  const previousVal = yearSel ? yearSel.value : '';
+
   // Populate years
   const years = [...new Set(DATA.map(c => c.end_date ? new Date(c.end_date).getFullYear() : null).filter(Boolean))];
   const currentYear = new Date().getFullYear();
   if (!years.includes(currentYear)) years.push(currentYear);
   years.sort();
-  yearSel.innerHTML = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
+
+  // If there was a previous selection, maintain it; otherwise default to current year
+  const defaultSelected = previousVal ? Number(previousVal) : currentYear;
+  yearSel.innerHTML = years.map(y => `<option value="${y}" ${y === defaultSelected ? 'selected' : ''}>${y}</option>`).join('');
   const selectedYear = Number(yearSel.value) || currentYear;
 
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
