@@ -518,6 +518,7 @@ td:first-child { padding-left: 20px; }
 .exp-3 { background: var(--orange-dim); color: var(--orange); border-color: rgba(249,115,22,0.3); }
 .exp-today { background: rgba(220,38,38,0.1); color: #dc2626; border-color: rgba(220,38,38,0.3); animation: todayPulse 2s infinite; }
 .exp-expired { background: var(--danger-dim); color: var(--danger); border-color: rgba(239,68,68,0.3); }
+.exp-future { background: var(--purple-dim); color: var(--purple); border-color: rgba(139,92,246,0.3); }
 @keyframes todayPulse { 0%,100% { opacity:1; } 50% { opacity:0.65; } }
 
 /* Action Buttons in Table */

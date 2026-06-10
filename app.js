@@ -589,6 +589,18 @@ function daysLeft(endDateStr) {
   return Math.ceil((end - today()) / 86400000);
 }
 
+function isFuturePolicy(startDateStr) {
+  if (!startDateStr) return false;
+  const start = new Date(startDateStr); start.setHours(0,0,0,0);
+  return start > today();
+}
+
+function daysUntilStart(startDateStr) {
+  if (!startDateStr) return 0;
+  const start = new Date(startDateStr); start.setHours(0,0,0,0);
+  return Math.ceil((start - today()) / 86400000);
+}
+
 function formatDate(str) {
   if (!str) return '—';
   const d = new Date(str);
@@ -945,12 +957,15 @@ function applyFiltersAndStats() {
   const selectedYear = document.getElementById('yearFilter').value;
   const sortBy = document.getElementById('sortBy').value;
 
-  // Enrich with daysLeft
-  const enriched = DATA.map(c => ({ ...c, _days: daysLeft(c.end_date) }));
+  // Enrich with daysLeft and isFuture
+  const enriched = DATA.map(c => ({ ...c, _days: daysLeft(c.end_date), _isFuture: isFuturePolicy(c.start_date) }));
 
   // Compute stats (all records, no status filter)
   let totalPremium = 0, totalComm = 0, active = 0, expired = 0, days15 = 0, days7 = 0, days3 = 0, expiredToday = 0;
   enriched.forEach(c => {
+    if (c._isFuture) {
+      return; // Skip future policies for active/expired statistics
+    }
     if (c._days >= 0) {
       totalPremium += Number(c.premium_amount) || 0;
       totalComm += Number(c.commission_amount) || 0;
@@ -980,11 +995,11 @@ function applyFiltersAndStats() {
   // Filter
   filteredData = enriched.filter(c => {
     // Status filter
-    if (activeStatusFilter === 'expired' && c._days >= 0) return false;
-    if (activeStatusFilter === 'today' && c._days !== 0) return false;
-    if (activeStatusFilter === '3' && (c._days < 0 || c._days > 3)) return false;
-    if (activeStatusFilter === '7' && (c._days < 4 || c._days > 7)) return false;
-    if (activeStatusFilter === '15' && (c._days < 8 || c._days > 15)) return false;
+    if (activeStatusFilter === 'expired' && (c._days >= 0 || c._isFuture)) return false;
+    if (activeStatusFilter === 'today' && (c._days !== 0 || c._isFuture)) return false;
+    if (activeStatusFilter === '3' && (c._days < 0 || c._days > 3 || c._isFuture)) return false;
+    if (activeStatusFilter === '7' && (c._days < 4 || c._days > 7 || c._isFuture)) return false;
+    if (activeStatusFilter === '15' && (c._days < 8 || c._days > 15 || c._isFuture)) return false;
 
     // Year filter (on end_date year)
     if (selectedYear !== 'all') {
@@ -1046,8 +1061,13 @@ function renderTable() {
 
   filteredData.forEach((client, idx) => {
     const days = client._days;
-    const expClass = getExpiryClass(days);
-    const expLabel = getExpiryLabel(days);
+    let expClass = getExpiryClass(days);
+    let expLabel = getExpiryLabel(days);
+    if (client._isFuture) {
+      expClass = 'exp-future';
+      const daysToStart = daysUntilStart(client.start_date);
+      expLabel = daysToStart === 1 ? 'Starts Tomorrow' : `Starts in ${daysToStart}d`;
+    }
     const provClass = getProviderClass(client.provider);
     const hasKyc = client.kyc_docs && client.kyc_docs.length > 0;
     const isExpanded = expandedRows.has(client.id);
