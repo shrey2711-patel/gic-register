@@ -192,11 +192,11 @@
           <div class="stat-value" id="stat3Days">0</div>
           <div class="stat-sub">urgent action required</div>
         </div>
-        <div class="stat-badge" style="--badge-color:var(--purple);--badge-color-dim:var(--purple-dim)">
-          <div class="stat-icon"><i class="fa-solid fa-calendar-xmark"></i></div>
-          <div class="stat-label">Expired Today</div>
-          <div class="stat-value" id="statExpiredToday">0</div>
-          <div class="stat-sub" id="statTotalExpired">0 total expired</div>
+        <div class="stat-badge" style="--badge-color:var(--emerald);--badge-color-dim:var(--emerald-dim)">
+          <div class="stat-icon"><i class="fa-solid fa-shield-check"></i></div>
+          <div class="stat-label">Active Policy Count</div>
+          <div class="stat-value" id="statActive">0</div>
+          <div class="stat-sub" id="statExpiredSub">0 expired</div>
         </div>
       </div>
 
@@ -204,9 +204,6 @@
       <div class="view-tabs">
         <button class="view-tab active" id="tabRegister" onclick="switchView('register')">
           <i class="fa-solid fa-table-list"></i> Register
-        </button>
-        <button class="view-tab" id="tabClaims" onclick="switchView('claims')">
-          <i class="fa-solid fa-hand-holding-medical"></i> Claims
         </button>
         <button class="view-tab" id="tabAnalytics" onclick="switchView('analytics')">
           <i class="fa-solid fa-chart-pie"></i> Analytics
@@ -282,49 +279,6 @@
         </div>
 
       </div><!-- end registerView -->
-
-      <!-- ───── CLAIMS VIEW (New) ───── -->
-      <div id="claimsView" class="hidden">
-        <div class="register-controls">
-          <div class="controls-row">
-            <div class="search-wrap">
-              <i class="fa-solid fa-magnifying-glass"></i>
-              <input type="text" class="search-input" id="claimSearchInput" placeholder="Search claims (by claimant, client, provider...)" oninput="applyClaimFilters()">
-            </div>
-            <select class="filter-select" id="claimStatusFilter" onchange="applyClaimFilters()">
-              <option value="all">All Statuses</option>
-              <option value="pending">⏳ Pending</option>
-              <option value="approved">✅ Approved</option>
-              <option value="settled">💵 Settled</option>
-              <option value="rejected">❌ Rejected</option>
-            </select>
-            <button class="btn btn-primary" onclick="openLogClaimModal()" style="margin-left:auto; display:flex; align-items:center; gap:8px">
-              <i class="fa-solid fa-hand-holding-medical"></i> Log New Claim
-            </button>
-          </div>
-        </div>
-
-        <div class="table-card" style="margin-top:16px">
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:50px; text-align:center">Sr</th>
-                  <th>Client / Claimant</th>
-                  <th>Policy Info</th>
-                  <th>Claim Details</th>
-                  <th>Claim Timeline</th>
-                  <th>Status</th>
-                  <th style="min-width:140px; text-align:center">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="claimsTableBody">
-                <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🩹</div><h3>No claims logged yet</h3><p>Click "Log New Claim" to get started</p></div></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div><!-- end claimsView -->
 
       <!-- ───── ANALYTICS VIEW ───── -->
       <div id="analyticsView" class="hidden">
@@ -483,15 +437,31 @@
             <input type="text" class="form-input" id="ac_plan" placeholder="e.g. Star Comprehensive, HDFC Optima Restore">
           </div>
           <div class="form-group">
-            <label class="form-label">Plan Amount (₹) <span class="required">*</span></label>
+            <label class="form-label">Sum Insured / Plan Amount (₹)</label>
             <div class="form-input-prefix">
               <span>₹</span>
-              <input type="number" class="form-input" id="ac_plan_amount" placeholder="e.g. 15000" oninput="updateCommissionCalc('ac')">
+              <input type="number" class="form-input" id="ac_plan_amount" placeholder="e.g. 500000">
             </div>
           </div>
           <div class="form-group">
             <label class="form-label">Policy Number</label>
             <input type="text" class="form-input" id="ac_policy_no" placeholder="e.g. P/181323/01/2026/001234">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Payment Mode <span class="required">*</span></label>
+            <select class="form-select" id="ac_premium_mode">
+              <option value="yearly">Yearly (Annual)</option>
+              <option value="half_yearly">Half-Yearly (6 Months)</option>
+              <option value="quarterly">Quarterly (3 Months)</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Amount (₹) <span class="required">*</span></label>
+            <div class="form-input-prefix">
+              <span>₹</span>
+              <input type="number" class="form-input" id="ac_premium_amount" placeholder="0" oninput="updateCommissionCalc('ac')">
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Policy Start Date <span class="required">*</span></label>
@@ -514,26 +484,26 @@
         <div class="form-group">
           <label class="form-label">Commission Type</label>
           <div class="toggle-group">
-            <button class="toggle-opt" id="ac_comm_direct_btn" onclick="setCommType('ac','direct')">💵 Direct Amount</button>
-            <button class="toggle-opt active" id="ac_comm_pct_btn" onclick="setCommType('ac','percentage')">% By Percentage</button>
+            <button class="toggle-opt active" id="ac_comm_direct_btn" onclick="setCommType('ac','direct')">💵 Direct Amount</button>
+            <button class="toggle-opt" id="ac_comm_pct_btn" onclick="setCommType('ac','percentage')">% By Percentage</button>
           </div>
         </div>
         <div class="form-grid">
-          <div class="form-group hidden" id="ac_directDiv">
+          <div class="form-group" id="ac_directDiv">
             <label class="form-label">Commission Amount (₹)</label>
             <div class="form-input-prefix">
               <span>₹</span>
               <input type="number" class="form-input" id="ac_comm_direct" placeholder="e.g. 2500">
             </div>
           </div>
-          <div class="form-group" id="ac_pctDiv">
+          <div class="form-group hidden" id="ac_pctDiv">
             <label class="form-label">Commission Percentage (%)</label>
             <input type="number" class="form-input" id="ac_comm_pct" placeholder="e.g. 15" min="0" max="100" oninput="updateCommissionCalc('ac')">
           </div>
-          <div class="form-group" id="ac_calcDiv">
+          <div class="form-group hidden" id="ac_calcDiv">
             <label class="form-label">Calculated Commission</label>
             <div class="form-calc-display">₹ <span id="ac_comm_calc">0</span></div>
-            <div class="form-hint">= Plan Amount × Commission %</div>
+            <div class="form-hint">= Premium × Commission %</div>
           </div>
         </div>
       </div>
@@ -682,14 +652,29 @@
             <input type="text" class="form-input" id="ed_plan">
           </div>
           <div class="form-group">
-            <label class="form-label">Plan Amount (₹) <span class="required">*</span></label>
+            <label class="form-label">Sum Insured (₹)</label>
             <div class="form-input-prefix"><span>₹</span>
-              <input type="number" class="form-input" id="ed_plan_amount" oninput="updateCommissionCalc('ed')">
+              <input type="number" class="form-input" id="ed_plan_amount">
             </div>
           </div>
           <div class="form-group">
             <label class="form-label">Policy Number</label>
             <input type="text" class="form-input" id="ed_policy_no">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Mode</label>
+            <select class="form-select" id="ed_premium_mode">
+              <option value="yearly">Yearly</option>
+              <option value="half_yearly">Half-Yearly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Premium Amount (₹) <span class="required">*</span></label>
+            <div class="form-input-prefix"><span>₹</span>
+              <input type="number" class="form-input" id="ed_premium_amount" oninput="updateCommissionCalc('ed')">
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Start Date</label>
@@ -711,12 +696,12 @@
         <div class="form-group">
           <label class="form-label">Commission Type</label>
           <div class="toggle-group">
-            <button class="toggle-opt" id="ed_comm_direct_btn" onclick="setCommType('ed','direct')">💵 Direct Amount</button>
-            <button class="toggle-opt active" id="ed_comm_pct_btn" onclick="setCommType('ed','percentage')">% By Percentage</button>
+            <button class="toggle-opt active" id="ed_comm_direct_btn" onclick="setCommType('ed','direct')">💵 Direct Amount</button>
+            <button class="toggle-opt" id="ed_comm_pct_btn" onclick="setCommType('ed','percentage')">% By Percentage</button>
           </div>
         </div>
         <div class="form-grid">
-          <div class="form-group hidden" id="ed_directDiv">
+          <div class="form-group" id="ed_directDiv">
             <label class="form-label">Commission Amount (₹)</label>
             <div class="form-input-prefix"><span>₹</span>
               <input type="number" class="form-input" id="ed_comm_direct">
@@ -908,109 +893,6 @@
       <button class="btn btn-secondary" onclick="closeModal('viewClientOverlay')">Close</button>
       <button class="btn btn-primary" id="viewEditBtn" onclick="closeModal('viewClientOverlay')">
         <i class="fa-solid fa-pen-to-square"></i> Edit Client
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ── 7. LOG CLAIM MODAL ── -->
-<div class="modal-overlay" id="claimOverlay">
-  <div class="modal modal-lg">
-    <div class="modal-header">
-      <div class="modal-header-left">
-        <div class="modal-header-icon blue"><i class="fa-solid fa-hand-holding-medical"></i></div>
-        <div>
-          <div class="modal-title" id="claimModalTitle">Log New Claim</div>
-          <div class="modal-subtitle">Track insurance claims and billing updates</div>
-        </div>
-      </div>
-      <button class="modal-close" onclick="closeModal('claimOverlay')"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="cl_claimId">
-      
-      <!-- Section 1: Claimant -->
-      <div class="form-section">
-        <div class="form-section-title"><i class="fa-solid fa-user-injured"></i> Claimant Details</div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label class="form-label">Select Client Profile <span class="required">*</span></label>
-            <select class="form-select" id="cl_client_id" onchange="onClaimClientChange()">
-              <option value="">Choose client...</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Claimant Name (Patient) <span class="required">*</span></label>
-            <select class="form-select" id="cl_claimant_name">
-              <option value="">Select client first...</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Section 2: Claim Info -->
-      <div class="form-section">
-        <div class="form-section-title"><i class="fa-solid fa-indian-rupee-sign"></i> Claim & Status</div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label class="form-label">Claim Amount (₹) <span class="required">*</span></label>
-            <div class="form-input-prefix">
-              <span>₹</span>
-              <input type="number" class="form-input" id="cl_amount" placeholder="e.g. 50000">
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Claim Status <span class="required">*</span></label>
-            <select class="form-select" id="cl_status">
-              <option value="pending">⏳ Pending</option>
-              <option value="approved">✅ Approved</option>
-              <option value="settled">💵 Settled</option>
-              <option value="rejected">❌ Rejected</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Section 3: Timeline -->
-      <div class="form-section">
-        <div class="form-section-title"><i class="fa-solid fa-clock-rotate-left"></i> Dates & Timeline</div>
-        <div class="form-grid-3">
-          <div class="form-group">
-            <label class="form-label">Applied Date <span class="required">*</span></label>
-            <input type="text" class="form-input date-mask" id="cl_date_applied" placeholder="DD-MM-YYYY" maxlength="10">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Docs Sent to Co.</label>
-            <input type="text" class="form-input date-mask" id="cl_date_docs_sent" placeholder="DD-MM-YYYY" maxlength="10">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Company Responded</label>
-            <input type="text" class="form-input date-mask" id="cl_date_responded" placeholder="DD-MM-YYYY" maxlength="10">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Approved Date</label>
-            <input type="text" class="form-input date-mask" id="cl_date_approved" placeholder="DD-MM-YYYY" maxlength="10">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Settled / Credited Date</label>
-            <input type="text" class="form-input date-mask" id="cl_date_settled" placeholder="DD-MM-YYYY" maxlength="10">
-          </div>
-        </div>
-      </div>
-
-      <!-- Section 4: Notes -->
-      <div class="form-section">
-        <div class="form-section-title"><i class="fa-solid fa-notes-medical"></i> Notes & Remarks</div>
-        <div class="form-group">
-          <textarea class="form-textarea" id="cl_notes" placeholder="Hospitalization details, bills, claim queries..." rows="2"></textarea>
-        </div>
-      </div>
-
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('claimOverlay')">Cancel</button>
-      <button class="btn btn-primary btn-lg" onclick="submitClaim()">
-        <i class="fa-solid fa-floppy-disk"></i> Save Claim
       </button>
     </div>
   </div>
