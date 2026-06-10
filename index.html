@@ -273,7 +273,6 @@
                   <th>Commission</th>
                   <th>End Date</th>
                   <th>Status</th>
-                  <th>KYC</th>
                   <th style="min-width:160px">Actions</th>
                 </tr>
               </thead>
@@ -593,30 +592,7 @@
         </div>
       </div>
 
-      <!-- Section 6: Documents -->
-      <div class="form-section">
-        <div class="form-section-title"><i class="fa-solid fa-folder-open"></i> Documents</div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label class="form-label">KYC Documents (Multiple files allowed)</label>
-            <label class="file-upload-label">
-              <i class="fa-solid fa-id-card" style="color:var(--purple)"></i>
-              <span>Click to upload KYC files</span>
-              <input type="file" id="ac_kyc_docs" multiple accept="image/*,.pdf">
-            </label>
-            <div class="file-upload-preview" id="ac_kyc_preview">No files selected</div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Policy Document (PDF/Image)</label>
-            <label class="file-upload-label">
-              <i class="fa-solid fa-file-pdf" style="color:var(--danger)"></i>
-              <span>Click to upload policy doc</span>
-              <input type="file" id="ac_policy_doc" accept="image/*,.pdf">
-            </label>
-            <div class="file-upload-preview" id="ac_policy_preview">No file selected</div>
-          </div>
-        </div>
-      </div>
+
 
     </div>
     <div class="modal-footer">
@@ -781,34 +757,7 @@
         </div>
         <div id="ed_familyCardsContainer" class="family-cards-container"></div>
       </div>
-      <!-- Documents -->
-      <div class="form-section">
-        <div class="form-section-title"><i class="fa-solid fa-folder-open"></i> Documents</div>
-        <div class="info-box" style="margin-bottom:10px">
-          <i class="fa-solid fa-circle-info"></i>
-          Uploading new files will replace existing documents. Leave blank to keep current files.
-        </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label class="form-label">KYC Documents</label>
-            <label class="file-upload-label">
-              <i class="fa-solid fa-id-card" style="color:var(--purple)"></i>
-              <span id="ed_kyc_btn_label">Replace KYC files</span>
-              <input type="file" id="ed_kyc_docs" multiple accept="image/*,.pdf">
-            </label>
-            <div class="file-upload-preview" id="ed_kyc_preview"></div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Policy Document</label>
-            <label class="file-upload-label">
-              <i class="fa-solid fa-file-pdf" style="color:var(--danger)"></i>
-              <span id="ed_policy_btn_label">Replace policy doc</span>
-              <input type="file" id="ed_policy_doc" accept="image/*,.pdf">
-            </label>
-            <div class="file-upload-preview" id="ed_policy_preview"></div>
-          </div>
-        </div>
-      </div>
+
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('editClientOverlay')">Cancel</button>

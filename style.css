@@ -556,13 +556,7 @@ td:first-child { padding-left: 20px; }
 .action-btn.renew { color: var(--emerald); border-color: rgba(16,185,129,0.25); background: rgba(16,185,129,0.05); }
 .action-btn.renew:hover { background: var(--emerald); color: white; border-color: var(--emerald); }
 
-/* KYC Indicator */
-.kyc-indicator {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
-}
-.kyc-yes { background: var(--emerald-dim); color: var(--emerald); }
-.kyc-no { background: rgba(100,116,139,0.08); color: var(--text-light); }
+
 
 /* Family Expand Row */
 .family-expand-row td {
@@ -792,16 +786,7 @@ td:first-child { padding-left: 20px; }
 }
 .family-card-item .remove-member-btn:hover { color: var(--danger); background: var(--danger-dim); }
 
-/* File Upload */
-.file-upload-label {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px; border: 2px dashed var(--card-border);
-  border-radius: var(--r-sm); cursor: pointer; transition: var(--t);
-  background: var(--bg); color: var(--text-muted); font-size: 13px;
-}
-.file-upload-label:hover { border-color: var(--primary); background: var(--primary-dim); color: var(--primary); }
-.file-upload-label input[type="file"] { display: none; }
-.file-upload-preview { font-size: 11.5px; color: var(--text-muted); margin-top: 5px; min-height: 16px; }
+
 
 /* Client Search in Log Policy */
 .client-search-results {

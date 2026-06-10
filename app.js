@@ -61,7 +61,7 @@ const SAMPLE_CLIENTS = [
       { type: 'child', name: 'Rohan Sharma', dob: '2008-11-05', height: "5'2\"", weight: '48', gender: 'male' },
       { type: 'child', name: 'Anjali Sharma', dob: '2012-04-18', height: "4'8\"", weight: '35', gender: 'female' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: false,
+    wa_sent: false,
     created_at: '2025-06-12T10:00:00Z'
   },
   {
@@ -82,7 +82,7 @@ const SAMPLE_CLIENTS = [
       { type: 'spouse', name: 'Ketan Mehta', dob: '1984-02-28', height: "5'10\"", weight: '78', gender: 'male' },
       { type: 'child', name: 'Aryan Mehta', dob: '2014-06-30', height: "4'5\"", weight: '30', gender: 'male' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: false,
+    wa_sent: false,
     created_at: '2025-06-16T11:30:00Z'
   },
   {
@@ -102,7 +102,7 @@ const SAMPLE_CLIENTS = [
       { type: 'self', name: 'Suresh Nair', dob: '1978-11-20', height: "5'7\"", weight: '70', gender: 'male' },
       { type: 'spouse', name: 'Meena Nair', dob: '1981-05-14', height: "5'3\"", weight: '55', gender: 'female' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: true,
+    wa_sent: true,
     created_at: '2025-06-14T09:15:00Z'
   },
   {
@@ -125,7 +125,7 @@ const SAMPLE_CLIENTS = [
       { type: 'child', name: 'Vivek Desai', dob: '2004-03-22', height: "5'7\"", weight: '65', gender: 'male' },
       { type: 'other', name: 'Prakashbhai Desai', dob: '1946-07-08', height: "5'5\"", weight: '66', gender: 'male', other_label: 'Father-in-Law' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: false,
+    wa_sent: false,
     created_at: '2025-06-24T14:00:00Z'
   },
   {
@@ -144,7 +144,7 @@ const SAMPLE_CLIENTS = [
     family_members: [
       { type: 'self', name: 'Vikram Singh Rathore', dob: '1985-12-01', height: "6'0\"", weight: '82', gender: 'male' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: false,
+    wa_sent: false,
     created_at: '2025-07-09T10:00:00Z'
   },
   {
@@ -165,7 +165,7 @@ const SAMPLE_CLIENTS = [
       { type: 'spouse', name: 'Deepak Joshi', dob: '1979-09-10', height: "5'9\"", weight: '74', gender: 'male' },
       { type: 'child', name: 'Tanvi Joshi', dob: '2010-12-19', height: "4'9\"", weight: '38', gender: 'female' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: false,
+    wa_sent: false,
     created_at: '2025-06-09T08:00:00Z'
   },
   {
@@ -187,7 +187,7 @@ const SAMPLE_CLIENTS = [
       { type: 'child', name: 'Ayaan Sheikh', dob: '2007-08-17', height: "5'5\"", weight: '55', gender: 'male' },
       { type: 'child', name: 'Aliya Sheikh', dob: '2010-11-25', height: "4'10\"", weight: '36', gender: 'female' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: false,
+    wa_sent: false,
     created_at: '2025-06-05T10:00:00Z'
   },
   {
@@ -207,7 +207,7 @@ const SAMPLE_CLIENTS = [
       { type: 'self', name: 'Deepa Krishnamurthy', dob: '1990-01-30', height: "5'4\"", weight: '55', gender: 'female' },
       { type: 'spouse', name: 'Rajesh Krishnamurthy', dob: '1988-07-05', height: "5'11\"", weight: '79', gender: 'male' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: false,
+    wa_sent: false,
     created_at: '2026-02-15T09:00:00Z'
   },
   {
@@ -228,7 +228,7 @@ const SAMPLE_CLIENTS = [
       { type: 'spouse', name: 'Shalini Agarwal', dob: '1978-11-03', height: "5'3\"", weight: '60', gender: 'female' },
       { type: 'child', name: 'Nishant Agarwal', dob: '2005-02-14', height: "5'7\"", weight: '62', gender: 'male' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: false,
+    wa_sent: false,
     created_at: '2025-06-20T12:00:00Z'
   },
   {
@@ -250,7 +250,7 @@ const SAMPLE_CLIENTS = [
       { type: 'child', name: 'Rahul Yadav', dob: '1999-04-12', height: "5'8\"", weight: '68', gender: 'male' },
       { type: 'child', name: 'Pooja Yadav', dob: '2003-07-30', height: "5'2\"", weight: '50', gender: 'female' }
     ],
-    kyc_docs: [], policy_doc: null, wa_sent: false,
+    wa_sent: false,
     created_at: '2025-09-30T10:00:00Z'
   }
 ];
@@ -397,21 +397,7 @@ function deleteFromDB(id, callback) {
 // ══════════════════════════════════════════════════════════════
 // FIREBASE CLOUD SYNC
 // ══════════════════════════════════════════════════════════════
-async function uploadFileToFirebase(clientId, folder, fileData) {
-  if (!cloudSyncActive || !firebaseApp) return null;
-  try {
-    const response = await fetch(fileData.data);
-    const blob = await response.blob();
-    const storageRef = firebaseApp.storage().ref();
-    const fileRef = storageRef.child(`${folder}/${clientId}/${fileData.name}`);
-    const snapshot = await fileRef.put(blob);
-    const url = await snapshot.ref.getDownloadURL();
-    return { name: fileData.name, type: fileData.type, size: fileData.size, url: url, data: '' };
-  } catch (e) {
-    console.error("Firebase Storage upload failed:", e);
-    return null;
-  }
-}
+
 function connectCloud() {
   const projectId = document.getElementById('fb_projectId').value.trim();
   const apiKey = document.getElementById('fb_apiKey').value.trim();
@@ -465,22 +451,7 @@ function startRealtimeSync(collection) {
     snapshot.forEach(doc => {
       const cloudClient = { ...doc.data(), id: doc.id };
       
-      // Preserve local base64 data if it exists for offline use, while keeping cloud URLs
-      const localClient = DATA.find(c => c.id === cloudClient.id);
-      if (localClient) {
-        if (localClient.kyc_docs && localClient.kyc_docs.length > 0 && cloudClient.kyc_docs) {
-          cloudClient.kyc_docs = cloudClient.kyc_docs.map(cd => {
-            const ld = localClient.kyc_docs.find(l => l.name === cd.name);
-            return ld ? { ...cd, data: ld.data || cd.data || '' } : cd;
-          });
-        }
-        if (localClient.policy_doc && cloudClient.policy_doc) {
-          if (localClient.policy_doc.name === cloudClient.policy_doc.name) {
-            cloudClient.policy_doc.data = localClient.policy_doc.data || '';
-          }
-        }
-      }
-      
+
       cloud.push(cloudClient);
     });
     
@@ -755,52 +726,7 @@ function getMemberTypeLabel(type) {
   return t[type] || 'Member';
 }
 
-async function getFileData(input) {
-  const file = input.files[0];
-  if (!file) return null;
-  return new Promise(resolve => {
-    const r = new FileReader();
-    r.onload = e => resolve({ name: file.name, type: file.type, data: e.target.result, size: file.size });
-    r.onerror = () => resolve(null);
-    r.readAsDataURL(file);
-  });
-}
 
-async function getMultipleFilesData(input) {
-  const files = input.files;
-  if (!files || files.length === 0) return [];
-  const results = [];
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    const data = await new Promise(resolve => {
-      const r = new FileReader();
-      r.onload = e => resolve({ name: f.name, type: f.type, data: e.target.result, size: f.size });
-      r.onerror = () => resolve(null);
-      r.readAsDataURL(f);
-    });
-    if (data) results.push(data);
-  }
-  return results;
-}
-
-function downloadDoc(doc, clientName) {
-  if (!doc) return;
-  if (doc.url) { window.open(doc.url, '_blank'); return; }
-  try {
-    const parts = doc.data.split(';base64,');
-    const mime = parts[0].split(':')[1];
-    const raw = atob(parts[1]);
-    const arr = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-    const blob = new Blob([arr], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = doc.name;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  } catch(e) { window.open(doc.data, '_blank'); }
-}
 
 // ══════════════════════════════════════════════════════════════
 // CLOCK
@@ -1142,7 +1068,6 @@ function renderTable() {
       expLabel = 'Renewed';
     }
     const provClass = getProviderClass(client.provider);
-    const hasKyc = client.kyc_docs && client.kyc_docs.length > 0;
     const isExpanded = expandedRows.has(client.id);
 
     // Row background class
@@ -1192,11 +1117,6 @@ function renderTable() {
         </div>
       </td>
       <td><span class="expiry-badge ${expClass}">${expLabel}</span></td>
-      <td>
-        <span class="kyc-indicator ${hasKyc ? 'kyc-yes' : 'kyc-no'}">
-          ${hasKyc ? `<i class="fa-solid fa-circle-check"></i> ${client.kyc_docs.length} file${client.kyc_docs.length > 1 ? 's' : ''}` : '<i class="fa-regular fa-circle-xmark"></i> None'}
-        </span>
-      </td>
       <td>
         <div class="action-btns">
           <button class="action-btn wa ${client.wa_sent ? 'sent' : ''}" title="Send WhatsApp Reminder" onclick="sendWhatsApp('${client.id}')">
@@ -1248,14 +1168,6 @@ function buildFamilyPanel(client) {
       </div>`;
   }).join('');
 
-  const kycSection = (client.kyc_docs && client.kyc_docs.length > 0)
-    ? client.kyc_docs.map((d, i) => `<button class="btn btn-secondary btn-sm" style="margin:3px" onclick="downloadClientDoc('${client.id}','kyc',${i})"><i class="fa-solid fa-download"></i> ${escapeHtml(d.name)}</button>`).join('')
-    : '<span style="color:var(--text-light);font-size:12px">No KYC documents uploaded</span>';
-
-  const policyDocSection = client.policy_doc
-    ? `<button class="btn btn-secondary btn-sm" onclick="downloadClientDoc('${client.id}','policy',0)"><i class="fa-solid fa-file-pdf" style="color:var(--danger)"></i> ${escapeHtml(client.policy_doc.name)}</button>`
-    : '<span style="color:var(--text-light);font-size:12px">No policy document</span>';
-
   const fitnessSection = client.fitness_details
     ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;font-style:italic">"${escapeHtml(client.fitness_details)}"</div>`
     : '';
@@ -1265,16 +1177,6 @@ function buildFamilyPanel(client) {
       <div class="family-expand-title"><i class="fa-solid fa-people-group"></i> Family Members (${(client.family_members||[]).length})</div>
       <div class="family-members-grid">${memberCards || '<div style="color:var(--text-light);font-size:12px">No family members added</div>'}</div>
       ${fitnessSection}
-      <div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap">
-        <div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);margin-bottom:6px">📄 Policy Doc</div>
-          ${policyDocSection}
-        </div>
-        <div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);margin-bottom:6px">🪪 KYC Documents</div>
-          ${kycSection}
-        </div>
-      </div>
     </div>`;
 }
 
@@ -1284,12 +1186,7 @@ function toggleFamilyRow(clientId) {
   renderTable();
 }
 
-function downloadClientDoc(clientId, type, idx) {
-  const client = DATA.find(c => c.id === clientId);
-  if (!client) return;
-  if (type === 'policy' && client.policy_doc) downloadDoc(client.policy_doc, client.name);
-  else if (type === 'kyc' && client.kyc_docs && client.kyc_docs[idx]) downloadDoc(client.kyc_docs[idx], client.name);
-}
+
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -1316,17 +1213,13 @@ function openAddClientModal() {
   document.getElementById('ac_comm_direct').value = '';
   document.getElementById('ac_comm_pct').value = '';
   document.getElementById('ac_comm_calc').textContent = '0';
-  document.getElementById('ac_kyc_docs').value = '';
-  document.getElementById('ac_policy_doc').value = '';
-  document.getElementById('ac_kyc_preview').textContent = 'No files selected';
-  document.getElementById('ac_policy_preview').textContent = 'No file selected';
   setCommType('ac', 'percentage');
   updateFamilyCards('ac');
   openModal('addClientOverlay');
   document.getElementById('ac_name').focus();
 }
 
-async function submitAddClient() {
+function submitAddClient() {
   const name = document.getElementById('ac_name').value.trim();
   const mobile = document.getElementById('ac_mobile').value.trim();
   const providerSel = document.getElementById('ac_provider').value;
@@ -1357,28 +1250,7 @@ async function submitAddClient() {
 
   const commAmount = getCommissionAmount('ac');
   const familyMembers = collectFamilyCards('ac');
-  const kycDocs = await getMultipleFilesData(document.getElementById('ac_kyc_docs'));
-  const policyDoc = await getFileData(document.getElementById('ac_policy_doc'));
-
   const clientId = generateId();
-  let finalKycDocs = kycDocs;
-  let finalPolicyDoc = policyDoc;
-
-  if (cloudSyncActive && firebaseApp) {
-    showToast('Uploading files to cloud...', 'info');
-    const uploadedKyc = [];
-    for (let f of kycDocs) {
-      const res = await uploadFileToFirebase(clientId, 'kyc', f);
-      if (res) uploadedKyc.push(res);
-      else uploadedKyc.push(f);
-    }
-    finalKycDocs = uploadedKyc;
-
-    if (policyDoc) {
-      const res = await uploadFileToFirebase(clientId, 'policy', policyDoc);
-      if (res) finalPolicyDoc = res;
-    }
-  }
 
   const newClient = {
     id: clientId,
@@ -1401,8 +1273,6 @@ async function submitAddClient() {
     fitness_details: document.getElementById('ac_fitness').value.trim(),
     family_count: Number(document.getElementById('ac_family_count').value) || 1,
     family_members: familyMembers,
-    kyc_docs: finalKycDocs,
-    policy_doc: finalPolicyDoc,
     wa_sent: false,
     created_at: new Date().toISOString()
   };
@@ -1410,14 +1280,7 @@ async function submitAddClient() {
   if (cloudSyncActive && firestoreDb) {
     const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY) || '{}');
     const docRef = firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).doc(newClient.id);
-    const cloudEntry = JSON.parse(JSON.stringify(newClient));
-    if (cloudEntry.kyc_docs) {
-      cloudEntry.kyc_docs.forEach(d => { if (d.url) d.data = ''; });
-    }
-    if (cloudEntry.policy_doc && cloudEntry.policy_doc.url) {
-      cloudEntry.policy_doc.data = '';
-    }
-    docRef.set(cloudEntry).then(() => {
+    docRef.set(newClient).then(() => {
       showToast(`${name} saved to cloud!`, 'success');
     }).catch(() => showToast('Cloud save failed, saved locally', 'error'));
   }
@@ -1484,17 +1347,10 @@ function openEditModal(clientId) {
   document.getElementById('ed_family_count').value = client.family_count || 1;
   updateFamilyCards('ed', client.family_members);
 
-  // Docs preview
-  const kycDocs = client.kyc_docs || [];
-  document.getElementById('ed_kyc_preview').textContent = kycDocs.length > 0 ? `Current: ${kycDocs.length} file(s) — ${kycDocs.map(d=>d.name).join(', ')}` : 'No KYC files';
-  document.getElementById('ed_policy_preview').textContent = client.policy_doc ? `Current: ${client.policy_doc.name}` : 'No policy doc';
-  document.getElementById('ed_kyc_docs').value = '';
-  document.getElementById('ed_policy_doc').value = '';
-
   openModal('editClientOverlay');
 }
 
-async function submitEditClient() {
+function submitEditClient() {
   if (!currentEditId) return;
   const clientIdx = DATA.findIndex(c => c.id === currentEditId);
   if (clientIdx === -1) return;
@@ -1530,38 +1386,6 @@ async function submitEditClient() {
   const commAmount = getCommissionAmount('ed');
   const familyMembers = collectFamilyCards('ed');
 
-  let kycDocs = await getMultipleFilesData(document.getElementById('ed_kyc_docs'));
-  let policyDoc = await getFileData(document.getElementById('ed_policy_doc'));
-
-  let finalKycDocs = kycDocs;
-  let finalPolicyDoc = policyDoc;
-
-  if (cloudSyncActive && firebaseApp) {
-    if (kycDocs.length === 0) {
-      finalKycDocs = DATA[clientIdx].kyc_docs || [];
-    } else {
-      showToast('Uploading new KYC files...', 'info');
-      const uploadedKyc = [];
-      for (let f of kycDocs) {
-        const res = await uploadFileToFirebase(currentEditId, 'kyc', f);
-        if (res) uploadedKyc.push(res);
-        else uploadedKyc.push(f);
-      }
-      finalKycDocs = uploadedKyc;
-    }
-
-    if (!policyDoc) {
-      finalPolicyDoc = DATA[clientIdx].policy_doc || null;
-    } else {
-      showToast('Uploading new Policy file...', 'info');
-      const res = await uploadFileToFirebase(currentEditId, 'policy', policyDoc);
-      if (res) finalPolicyDoc = res;
-    }
-  } else {
-    if (kycDocs.length === 0) finalKycDocs = DATA[clientIdx].kyc_docs || [];
-    if (!policyDoc) finalPolicyDoc = DATA[clientIdx].policy_doc || null;
-  }
-
   const updated = {
     ...DATA[clientIdx], name, mobile: cleanMobile(mobile),
     email: document.getElementById('ed_email').value.trim(),
@@ -1581,7 +1405,6 @@ async function submitEditClient() {
     fitness_details: document.getElementById('ed_fitness').value.trim(),
     family_count: Number(document.getElementById('ed_family_count').value) || 1,
     family_members: familyMembers,
-    kyc_docs: finalKycDocs, policy_doc: finalPolicyDoc,
     updated_at: new Date().toISOString()
   };
 
@@ -1589,14 +1412,7 @@ async function submitEditClient() {
   updateInDB(updated);
   if (cloudSyncActive && firestoreDb) {
     const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
-    const cloudEntry = JSON.parse(JSON.stringify(updated));
-    if (cloudEntry.kyc_docs) {
-      cloudEntry.kyc_docs.forEach(d => { if (d.url) d.data = ''; });
-    }
-    if (cloudEntry.policy_doc && cloudEntry.policy_doc.url) {
-      cloudEntry.policy_doc.data = '';
-    }
-    firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).doc(updated.id).set(cloudEntry).catch(() => {});
+    firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).doc(updated.id).set(updated).catch(() => {});
   }
   applyFiltersAndStats();
   closeModal('editClientOverlay');
@@ -1980,7 +1796,7 @@ function downloadBackup() {
     version: '2.0', exportedAt: new Date().toISOString(),
     totalRecords: DATA.length,
     totalClaims: CLAIMS.length,
-    data: DATA.map(c => { const copy = { ...c }; delete copy.kyc_docs; delete copy.policy_doc; return copy; }),
+    data: DATA,
     claims: CLAIMS
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -2003,7 +1819,7 @@ function restoreBackup(input) {
       const backup = JSON.parse(e.target.result);
       if ((!backup.data || !Array.isArray(backup.data)) && (!backup.claims || !Array.isArray(backup.claims))) { showToast('Invalid backup file!', 'error'); return; }
       if (!confirm(`Restore ${backup.data ? backup.data.length : 0} records and ${backup.claims ? backup.claims.length : 0} claims from backup?\n\nThis will REPLACE current data!`)) return;
-      DATA = (backup.data || []).map(c => ({ ...c, kyc_docs: [], policy_doc: null }));
+      DATA = backup.data || [];
       CLAIMS = backup.claims || [];
       saveAllToDB(() => {
         saveClaimsToDB(() => {
@@ -2196,22 +2012,7 @@ function renderForecastChart() {
   });
 }
 
-// File preview event bindings
-document.addEventListener('DOMContentLoaded', function() {
-  // KYC docs previews
-  ['ac_kyc_docs','ac_policy_doc','lp_kyc_docs','lp_policy_doc','ed_kyc_docs','ed_policy_doc'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener('change', function() {
-      const previewId = id.replace('docs', 'preview').replace('doc', 'preview');
-      const prevEl = document.getElementById(previewId);
-      if (!prevEl) return;
-      if (this.files.length === 1) prevEl.textContent = this.files[0].name;
-      else if (this.files.length > 1) prevEl.textContent = `${this.files.length} files selected`;
-      else prevEl.textContent = 'No file selected';
-    });
-  });
-});
+
 
 // ══════════════════════════════════════════════════════════════
 // INITIALIZATION
