@@ -481,11 +481,25 @@ function updateSyncUI(state) {
   }
 }
 
+const HARDCODED_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAPxNVrkK3_KCpygpsuzsFSPPJXtJ38kkc",
+  authDomain: "gic-register-ab710.firebaseapp.com",
+  projectId: "gic-register-ab710",
+  storageBucket: "gic-register-ab710.firebasestorage.app",
+  collection: "gic_policies"
+};
+
 function autoConnectFirebase() {
+  let cfg = null;
   const saved = localStorage.getItem(FIREBASE_CONFIG_KEY);
-  if (!saved) return;
+  if (saved) {
+    try { cfg = JSON.parse(saved); } catch(e) {}
+  }
+  if (!cfg) {
+    cfg = HARDCODED_FIREBASE_CONFIG;
+  }
+  if (!cfg || !cfg.projectId || !cfg.apiKey) return;
   try {
-    const cfg = JSON.parse(saved);
     document.getElementById('fb_projectId').value = cfg.projectId || '';
     document.getElementById('fb_apiKey').value = cfg.apiKey || '';
     document.getElementById('fb_authDomain').value = cfg.authDomain || '';
