@@ -907,9 +907,42 @@ function switchView(view) {
 // ══════════════════════════════════════════════════════════════
 // STATS & FILTERS
 // ══════════════════════════════════════════════════════════════
+function updateYearFilters() {
+  const yearFilter = document.getElementById('yearFilter');
+  if (!yearFilter) return;
+
+  const currentVal = yearFilter.value;
+
+  const years = [...new Set(DATA.map(c => c.end_date ? new Date(c.end_date).getFullYear() : null).filter(Boolean))];
+  const currentYear = new Date().getFullYear();
+  if (!years.includes(currentYear)) years.push(currentYear);
+  years.sort((a, b) => b - a);
+
+  const existingOptions = Array.from(yearFilter.options).map(opt => opt.value).filter(val => val !== 'all');
+  if (JSON.stringify(years) === JSON.stringify(existingOptions.map(Number))) {
+    return;
+  }
+
+  let html = '<option value="all">All Years</option>';
+  years.forEach(y => {
+    html += `<option value="${y}">${y}</option>`;
+  });
+
+  yearFilter.innerHTML = html;
+
+  if (currentVal && [...yearFilter.options].some(opt => opt.value === currentVal)) {
+    yearFilter.value = currentVal;
+  } else {
+    yearFilter.value = 'all';
+  }
+}
+
 function applyFiltersAndStats() {
+  updateYearFilters();
+
   const query = (document.getElementById('searchInput').value || '').toLowerCase().trim();
   const selectedMonth = document.getElementById('monthFilter').value;
+  const selectedYear = document.getElementById('yearFilter').value;
   const sortBy = document.getElementById('sortBy').value;
 
   // Enrich with daysLeft
@@ -952,6 +985,12 @@ function applyFiltersAndStats() {
     if (activeStatusFilter === '3' && (c._days < 0 || c._days > 3)) return false;
     if (activeStatusFilter === '7' && (c._days < 4 || c._days > 7)) return false;
     if (activeStatusFilter === '15' && (c._days < 8 || c._days > 15)) return false;
+
+    // Year filter (on end_date year)
+    if (selectedYear !== 'all') {
+      const y = new Date(c.end_date).getFullYear();
+      if (y !== Number(selectedYear)) return false;
+    }
 
     // Month filter (on end_date month)
     if (selectedMonth !== 'all') {

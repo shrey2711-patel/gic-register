@@ -225,6 +225,9 @@
                 placeholder="Search by name, policy no, mobile, provider..."
                 oninput="applyFilters()">
             </div>
+            <select class="filter-select" id="yearFilter" onchange="applyFilters()">
+              <option value="all">All Years</option>
+            </select>
             <select class="filter-select" id="monthFilter" onchange="applyFilters()">
               <option value="all">All Months</option>
               <option value="0">January</option><option value="1">February</option>
