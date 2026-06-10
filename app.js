@@ -957,14 +957,53 @@ function applyFiltersAndStats() {
   const selectedYear = document.getElementById('yearFilter').value;
   const sortBy = document.getElementById('sortBy').value;
 
-  // Enrich with daysLeft and isFuture
-  const enriched = DATA.map(c => ({ ...c, _days: daysLeft(c.end_date), _isFuture: isFuturePolicy(c.start_date) }));
+  // Enrich with daysLeft, isFuture, and isRenewed
+  const enriched = DATA.map(c => {
+    const days = daysLeft(c.end_date);
+    const isFuture = isFuturePolicy(c.start_date);
+    
+    // Check if there is a newer policy (renewal) in the dataset
+    const isRenewed = DATA.some(other => {
+      if (other.id === c.id) return false;
+      
+      const hasSamePolicyNo = c.policy_no && other.policy_no && 
+                              c.policy_no.trim() !== '' && 
+                              c.policy_no.trim().toLowerCase() === other.policy_no.trim().toLowerCase();
+                              
+      const hasSameClientAndPlan = (!c.policy_no || !other.policy_no || c.policy_no.trim() === '' || other.policy_no.trim() === '') &&
+                                    c.name && other.name &&
+                                    c.name.trim().toLowerCase() === other.name.trim().toLowerCase() &&
+                                    c.provider && other.provider &&
+                                    c.provider.trim().toLowerCase() === other.provider.trim().toLowerCase() &&
+                                    c.plan && other.plan &&
+                                    c.plan.trim().toLowerCase() === other.plan.trim().toLowerCase();
+                                    
+      if (!hasSamePolicyNo && !hasSameClientAndPlan) return false;
+      
+      // Check if other starts after this one
+      const cStart = new Date(c.start_date || c.created_at || 0);
+      const otherStart = new Date(other.start_date || other.created_at || 0);
+      if (otherStart > cStart) return true;
+      if (otherStart.getTime() === cStart.getTime()) {
+        const cEnd = new Date(c.end_date || 0);
+        const otherEnd = new Date(other.end_date || 0);
+        if (otherEnd > cEnd) return true;
+        return other.id > c.id;
+      }
+      return false;
+    });
+
+    return { ...c, _days: days, _isFuture: isFuture, _isRenewed: isRenewed };
+  });
 
   // Compute stats (all records, no status filter)
   let totalPremium = 0, totalComm = 0, active = 0, expired = 0, days15 = 0, days7 = 0, days3 = 0, expiredToday = 0;
   enriched.forEach(c => {
     if (c._isFuture) {
       return; // Skip future policies for active/expired statistics
+    }
+    if (c._isRenewed) {
+      return; // Skip renewed policies for active/expired statistics, as they are superseded by new ones
     }
     if (c._days >= 0) {
       totalPremium += Number(c.premium_amount) || 0;
@@ -995,11 +1034,11 @@ function applyFiltersAndStats() {
   // Filter
   filteredData = enriched.filter(c => {
     // Status filter
-    if (activeStatusFilter === 'expired' && (c._days >= 0 || c._isFuture)) return false;
-    if (activeStatusFilter === 'today' && (c._days !== 0 || c._isFuture)) return false;
-    if (activeStatusFilter === '3' && (c._days < 0 || c._days > 3 || c._isFuture)) return false;
-    if (activeStatusFilter === '7' && (c._days < 4 || c._days > 7 || c._isFuture)) return false;
-    if (activeStatusFilter === '15' && (c._days < 8 || c._days > 15 || c._isFuture)) return false;
+    if (activeStatusFilter === 'expired' && (c._days >= 0 || c._isFuture || c._isRenewed)) return false;
+    if (activeStatusFilter === 'today' && (c._days !== 0 || c._isFuture || c._isRenewed)) return false;
+    if (activeStatusFilter === '3' && (c._days < 0 || c._days > 3 || c._isFuture || c._isRenewed)) return false;
+    if (activeStatusFilter === '7' && (c._days < 4 || c._days > 7 || c._isFuture || c._isRenewed)) return false;
+    if (activeStatusFilter === '15' && (c._days < 8 || c._days > 15 || c._isFuture || c._isRenewed)) return false;
 
     // Year filter (on end_date year)
     if (selectedYear !== 'all') {
@@ -1067,6 +1106,9 @@ function renderTable() {
       expClass = 'exp-future';
       const daysToStart = daysUntilStart(client.start_date);
       expLabel = daysToStart === 1 ? 'Starts Tomorrow' : `Starts in ${daysToStart}d`;
+    } else if (client._isRenewed) {
+      expClass = 'exp-renewed';
+      expLabel = 'Renewed';
     }
     const provClass = getProviderClass(client.provider);
     const hasKyc = client.kyc_docs && client.kyc_docs.length > 0;
@@ -1074,8 +1116,13 @@ function renderTable() {
 
     // Row background class
     let rowClass = '';
-    if (days < 0) rowClass = 'expired-row';
-    else if (days <= 3) rowClass = 'urgent-row';
+    if (client._isRenewed) {
+      rowClass = 'renewed-row';
+    } else if (days < 0) {
+      rowClass = 'expired-row';
+    } else if (days <= 3) {
+      rowClass = 'urgent-row';
+    }
     if (isExpanded) rowClass += ' family-expanded';
 
     const tr = document.createElement('tr');
@@ -1977,7 +2024,7 @@ function renderProviderChart() {
       responsive: true, maintainAspectRatio: false,
       cutout: '65%',
       plugins: {
-        legend: { position: 'right', labels: { font: { family: 'Inter', size: 11 }, padding: 12, boxWidth: 12 } },
+        legend: { position: 'right', labels: { font: { family: 'Plus Jakarta Sans', size: 11 }, padding: 12, boxWidth: 12 } },
         tooltip: {
           callbacks: {
             label: ctx => ` ${ctx.label}: ${ctx.parsed} ${ctx.parsed === 1 ? 'policy' : 'policies'} (${Math.round(ctx.parsed / values.reduce((a,b)=>a+b,0) * 100)}%)`
@@ -2021,7 +2068,7 @@ function renderUrgencyChart() {
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, padding: 8, boxWidth: 12 } }
+        legend: { position: 'bottom', labels: { font: { family: 'Plus Jakarta Sans', size: 11 }, padding: 8, boxWidth: 12 } }
       }
     }
   });
@@ -2086,7 +2133,7 @@ function renderForecastChart() {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'top', labels: { font: { family: 'Inter', size: 12 }, padding: 16, boxWidth: 14 } },
+        legend: { position: 'top', labels: { font: { family: 'Plus Jakarta Sans', size: 12 }, padding: 16, boxWidth: 14 } },
         tooltip: {
           callbacks: {
             label: ctx => {
@@ -2097,15 +2144,15 @@ function renderForecastChart() {
         }
       },
       scales: {
-        x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 } } },
+        x: { grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } },
         y: {
-          position: 'left', title: { display: true, text: 'Premium (₹)', font: { family: 'Inter', size: 11 } },
-          ticks: { callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0)+'K' : v), font: { family: 'Inter', size: 11 } },
+          position: 'left', title: { display: true, text: 'Premium (₹)', font: { family: 'Plus Jakarta Sans', size: 11 } },
+          ticks: { callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0)+'K' : v), font: { family: 'Plus Jakarta Sans', size: 11 } },
           grid: { color: 'rgba(0,0,0,0.05)' }
         },
         y1: {
-          position: 'right', title: { display: true, text: 'Policy Count', font: { family: 'Inter', size: 11 } },
-          ticks: { stepSize: 1, font: { family: 'Inter', size: 11 } },
+          position: 'right', title: { display: true, text: 'Policy Count', font: { family: 'Plus Jakarta Sans', size: 11 } },
+          ticks: { stepSize: 1, font: { family: 'Plus Jakarta Sans', size: 11 } },
           grid: { display: false }
         }
       }
