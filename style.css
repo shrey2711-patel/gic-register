@@ -998,3 +998,79 @@ tbody tr { animation: fadeIn 0.25s ease both; }
 .mt-1 { margin-top: 4px; }
 .mt-2 { margin-top: 8px; }
 .hidden { display: none !important; }
+
+/* ── CLAIMS TRACKER STYLES ── */
+.claim-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--r-full);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+  border: 1px solid transparent;
+}
+.claim-status-badge.status-pending {
+  background: var(--warning-dim);
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+.claim-status-badge.status-approved {
+  background: var(--emerald-dim);
+  color: var(--emerald);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+.claim-status-badge.status-settled {
+  background: var(--sky-dim);
+  color: var(--sky);
+  border-color: rgba(56, 189, 248, 0.2);
+}
+.claim-status-badge.status-rejected {
+  background: var(--danger-dim);
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.claim-timeline-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+.timeline-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+.timeline-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 4.5px;
+  top: 10px;
+  bottom: -12px;
+  width: 1.5px;
+  background: var(--card-border);
+}
+.step-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--emerald);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px var(--emerald-dim);
+}
+.step-label {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  color: var(--text-secondary);
+}
+.timeline-step:not(.done) .step-dot {
+  background: var(--text-light);
+  box-shadow: none;
+}
+.timeline-step:not(.done) .step-label {
+  color: var(--text-muted);
+}
+
