@@ -1118,6 +1118,12 @@ function renderTable() {
       </td>
       <td><span class="expiry-badge ${expClass}">${expLabel}</span></td>
       <td>
+        ${client.collection_date
+          ? `<div class="cell-collection"><i class="fa-regular fa-calendar-check" style="color:var(--emerald);font-size:11px"></i> <strong>${formatDate(client.collection_date)}</strong></div>`
+          : `<span style="color:var(--text-light);font-size:11px">—</span>`
+        }
+      </td>
+      <td>
         <div class="action-btns">
           <button class="action-btn wa ${client.wa_sent ? 'sent' : ''}" title="Send WhatsApp Reminder" onclick="sendWhatsApp('${client.id}')">
             <i class="fa-brands fa-whatsapp"></i>
@@ -1213,6 +1219,7 @@ function openAddClientModal() {
   document.getElementById('ac_comm_direct').value = '';
   document.getElementById('ac_comm_pct').value = '';
   document.getElementById('ac_comm_calc').textContent = '0';
+  document.getElementById('ac_collection_date').value = '';
   setCommType('ac', 'percentage');
   updateFamilyCards('ac');
   openModal('addClientOverlay');
@@ -1238,6 +1245,11 @@ function submitAddClient() {
   }
   if (!isValidDateString(endDateRaw)) {
     showToast('Please enter a valid Policy End Date in DD-MM-YYYY format', 'error'); return;
+  }
+
+  const collectionDateRaw = document.getElementById('ac_collection_date').value.trim();
+  if (collectionDateRaw && !isValidDateString(collectionDateRaw)) {
+    showToast('Please enter a valid Collection Date in DD-MM-YYYY format', 'error'); return;
   }
 
   const count = Number(document.getElementById('ac_family_count').value) || 1;
@@ -1273,6 +1285,7 @@ function submitAddClient() {
     fitness_details: document.getElementById('ac_fitness').value.trim(),
     family_count: Number(document.getElementById('ac_family_count').value) || 1,
     family_members: familyMembers,
+    collection_date: ddmmyyyyToYyyymmdd(document.getElementById('ac_collection_date').value.trim()),
     wa_sent: false,
     created_at: new Date().toISOString()
   };
@@ -1346,6 +1359,7 @@ function openEditModal(clientId) {
   // Family
   document.getElementById('ed_family_count').value = client.family_count || 1;
   updateFamilyCards('ed', client.family_members);
+  document.getElementById('ed_collection_date').value = yyyymmddToDdmmyyyy(client.collection_date || '');
 
   openModal('editClientOverlay');
 }
@@ -1373,6 +1387,11 @@ function submitEditClient() {
   }
   if (!isValidDateString(endDateRaw)) {
     showToast('Please enter a valid End Date in DD-MM-YYYY format', 'error'); return;
+  }
+
+  const collectionDateRaw = document.getElementById('ed_collection_date').value.trim();
+  if (collectionDateRaw && !isValidDateString(collectionDateRaw)) {
+    showToast('Please enter a valid Collection Date in DD-MM-YYYY format', 'error'); return;
   }
 
   const count = Number(document.getElementById('ed_family_count').value) || 1;
@@ -1405,6 +1424,7 @@ function submitEditClient() {
     fitness_details: document.getElementById('ed_fitness').value.trim(),
     family_count: Number(document.getElementById('ed_family_count').value) || 1,
     family_members: familyMembers,
+    collection_date: ddmmyyyyToYyyymmdd(document.getElementById('ed_collection_date').value.trim()),
     updated_at: new Date().toISOString()
   };
 
@@ -2053,6 +2073,10 @@ function openRenewModal(clientId) {
 
   // 2. Set the modal title to "Renew Policy: [Client Name]"
   document.getElementById('addClientModalTitle').textContent = `Renew Policy: ${client.name}`;
+
+  // 2b. Pre-fill Collection Date = today (date premium is collected at renewal)
+  const todayStr = yyyymmddToDdmmyyyy(new Date().toISOString().split('T')[0]);
+  document.getElementById('ac_collection_date').value = todayStr;
 
   // 3. Pre-fill text inputs
   document.getElementById('ac_name').value = client.name || '';
