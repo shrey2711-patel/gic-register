@@ -435,7 +435,30 @@ function startRealtimeSync(collection) {
   if (firestoreUnsubscribe) firestoreUnsubscribe();
   firestoreUnsubscribe = firestoreDb.collection(collection).onSnapshot(snapshot => {
     const cloud = [];
-    snapshot.forEach(doc => cloud.push({ ...doc.data(), id: doc.id }));
+    snapshot.forEach(doc => {
+      const cloudClient = { ...doc.data(), id: doc.id };
+      
+      // Preserve local files since they are not uploaded to Firestore (to keep DB sizes free/small)
+      const localClient = DATA.find(c => c.id === cloudClient.id);
+      if (localClient) {
+        if (localClient.kyc_docs && localClient.kyc_docs.length > 0) {
+          cloudClient.kyc_docs = localClient.kyc_docs;
+        } else {
+          cloudClient.kyc_docs = cloudClient.kyc_docs || [];
+        }
+        if (localClient.policy_doc) {
+          cloudClient.policy_doc = localClient.policy_doc;
+        } else {
+          cloudClient.policy_doc = cloudClient.policy_doc || null;
+        }
+      } else {
+        cloudClient.kyc_docs = cloudClient.kyc_docs || [];
+        cloudClient.policy_doc = cloudClient.policy_doc || null;
+      }
+      
+      cloud.push(cloudClient);
+    });
+    
     DATA = cloud;
     saveAllToDB();
     applyFiltersAndStats();
