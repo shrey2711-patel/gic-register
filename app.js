@@ -2292,8 +2292,6 @@ function updateClaimsStats() {
   const pendingSubEl = document.getElementById('claimStatPendingSub');
   const settledEl = document.getElementById('claimStatSettled');
   const settledSubEl = document.getElementById('claimStatSettledSub');
-  const queryEl = document.getElementById('claimStatQuery');
-  const querySubEl = document.getElementById('claimStatQuerySub');
   const rejectedEl = document.getElementById('claimStatRejected');
   const rejectedSubEl = document.getElementById('claimStatRejectedSub');
 
@@ -2303,8 +2301,6 @@ function updateClaimsStats() {
   if (pendingSubEl) pendingSubEl.textContent = `${pendingCount} pending / approved`;
   if (settledEl) settledEl.textContent = formatCurrency(settledClaimAmt);
   if (settledSubEl) settledSubEl.textContent = `${settledCount} settled`;
-  if (queryEl) queryEl.textContent = formatCurrency(queryClaimAmt);
-  if (querySubEl) querySubEl.textContent = `${queryCount} quer${queryCount !== 1 ? 'ies' : 'y'} pending`;
   if (rejectedEl) rejectedEl.textContent = formatCurrency(rejectedClaimAmt);
   if (rejectedSubEl) rejectedSubEl.textContent = `${rejectedCount} rejected`;
 }
