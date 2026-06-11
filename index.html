@@ -425,34 +425,17 @@
 
         <div class="analytics-grid">
 
-          <!-- Provider Share -->
-          <div class="chart-card">
+          <!-- Monthly Revenue Trend -->
+          <div class="chart-card full-width">
             <div class="chart-card-header">
               <div>
-                <div class="chart-title">Insurance Provider Share</div>
-                <div class="chart-subtitle">Policy distribution by company</div>
+                <div class="chart-title">Monthly Revenue Trend</div>
+                <div class="chart-subtitle">Premium collected per month over past 12 months</div>
               </div>
-              <i class="fa-solid fa-building-columns" style="color:var(--text-light);font-size:20px"></i>
+              <i class="fa-solid fa-chart-line" style="color:var(--text-light);font-size:20px"></i>
             </div>
-            <div class="chart-container">
-              <canvas id="providerChart"></canvas>
-            </div>
-          </div>
-
-          <!-- Urgency Breakdown -->
-          <div class="chart-card">
-            <div class="chart-card-header">
-              <div>
-                <div class="chart-title">Policy Expiry Urgency</div>
-                <div class="chart-subtitle">Current renewal urgency breakdown</div>
-              </div>
-              <i class="fa-solid fa-circle-exclamation" style="color:var(--text-light);font-size:20px"></i>
-            </div>
-            <div class="chart-container">
-              <canvas id="urgencyChart"></canvas>
-            </div>
-            <div class="urgency-breakdown" id="urgencyBreakdown">
-              <!-- filled by JS -->
+            <div class="chart-container tall">
+              <canvas id="revenueTrendChart"></canvas>
             </div>
           </div>
 
@@ -472,6 +455,20 @@
             </div>
           </div>
 
+          <!-- Provider Share -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-title">Insurance Provider Share</div>
+                <div class="chart-subtitle">Policy distribution by company</div>
+              </div>
+              <i class="fa-solid fa-building-columns" style="color:var(--text-light);font-size:20px"></i>
+            </div>
+            <div class="chart-container">
+              <canvas id="providerChart"></canvas>
+            </div>
+          </div>
+
           <!-- Claim Settlement Ratio -->
           <div class="chart-card">
             <div class="chart-card-header">
@@ -486,17 +483,20 @@
             </div>
           </div>
 
-          <!-- Monthly Revenue Trend -->
-          <div class="chart-card full-width">
+          <!-- Urgency Breakdown -->
+          <div class="chart-card">
             <div class="chart-card-header">
               <div>
-                <div class="chart-title">Monthly Revenue Trend</div>
-                <div class="chart-subtitle">Premium collected per month over past 12 months</div>
+                <div class="chart-title">Policy Expiry Urgency</div>
+                <div class="chart-subtitle">Current renewal urgency breakdown</div>
               </div>
-              <i class="fa-solid fa-chart-line" style="color:var(--text-light);font-size:20px"></i>
+              <i class="fa-solid fa-circle-exclamation" style="color:var(--text-light);font-size:20px"></i>
             </div>
-            <div class="chart-container tall">
-              <canvas id="revenueTrendChart"></canvas>
+            <div class="chart-container">
+              <canvas id="urgencyChart"></canvas>
+            </div>
+            <div class="urgency-breakdown" id="urgencyBreakdown">
+              <!-- filled by JS -->
             </div>
           </div>
 
