@@ -1165,7 +1165,6 @@ tbody tr { animation: fadeIn 0.25s ease both; }
   display: flex;
   gap: 4px;
   align-items: flex-start;
-  max-width: 280px;
 }
 .heatmap-weekday-col {
   display: grid;
