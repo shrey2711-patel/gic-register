@@ -1904,9 +1904,44 @@ function renderWorkHeatmap() {
   if (!grid) return;
   grid.innerHTML = '';
 
+  const monthSel = document.getElementById('heatmapMonth');
+  const yearSel = document.getElementById('heatmapYear');
+  const subtitleEl = document.getElementById('heatmapSubtitle');
+  const totalEl = document.getElementById('heatmapMonthTotal');
+
+  // Populate year selector if empty
+  if (yearSel && yearSel.options.length === 0) {
+    const years = new Set();
+    years.add(new Date().getFullYear());
+    DATA.forEach(c => { if (c.created_at) years.add(new Date(c.created_at).getFullYear()); });
+    CLAIMS.forEach(c => { if (c.created_at) years.add(new Date(c.created_at).getFullYear()); });
+    const sortedYears = [...years].sort((a, b) => b - a);
+    sortedYears.forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      yearSel.appendChild(opt);
+    });
+    yearSel.value = new Date().getFullYear();
+  }
+
+  // Set default month to current month on first render
+  if (monthSel && !monthSel.dataset.initialized) {
+    monthSel.value = new Date().getMonth();
+    monthSel.dataset.initialized = '1';
+  }
+
+  const selectedMonth = parseInt(monthSel ? monthSel.value : new Date().getMonth());
+  const selectedYear = parseInt(yearSel ? yearSel.value : new Date().getFullYear());
+
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  // Update subtitle
+  if (subtitleEl) {
+    subtitleEl.textContent = `Daily entry count for ${monthNames[selectedMonth]} ${selectedYear}`;
+  }
+
+  // Count entries by date
   const countsByDate = {};
-  
-  // Count client entries
   DATA.forEach(c => {
     if (c.created_at) {
       const d = new Date(c.created_at);
@@ -1914,8 +1949,6 @@ function renderWorkHeatmap() {
       countsByDate[dateKey] = (countsByDate[dateKey] || 0) + 1;
     }
   });
-  
-  // Count claims entries
   CLAIMS.forEach(c => {
     if (c.created_at) {
       const d = new Date(c.created_at);
@@ -1924,26 +1957,25 @@ function renderWorkHeatmap() {
     }
   });
 
-  const today = new Date();
-  const startDate = new Date();
-  startDate.setDate(today.getDate() - 364); // 364 days ago
-  const dayOfWeek = startDate.getDay();
-  startDate.setDate(startDate.getDate() - dayOfWeek); // Align to Sunday
+  // Calculate month details
+  const firstDay = new Date(selectedYear, selectedMonth, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
 
-  const days = [];
-  const curr = new Date(startDate);
-  const end = new Date(today);
-  end.setHours(23, 59, 59, 999);
-  
-  while (curr <= end) {
-    days.push(new Date(curr));
-    curr.setDate(curr.getDate() + 1);
+  // Add transparent placeholder cells for alignment (grid flows column-first, 7 rows = Sun-Sat)
+  for (let i = 0; i < firstDay; i++) {
+    const spacer = document.createElement('div');
+    spacer.className = 'heatmap-cell-spacer';
+    grid.appendChild(spacer);
   }
 
-  days.forEach(date => {
-    const dateKey = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  let monthTotal = 0;
+
+  // Render day cells
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateKey = `${selectedYear}-${String(selectedMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const count = countsByDate[dateKey] || 0;
-    
+    monthTotal += count;
+
     let level = 0;
     if (count === 1) level = 1;
     else if (count >= 2 && count <= 3) level = 2;
@@ -1952,17 +1984,27 @@ function renderWorkHeatmap() {
 
     const cell = document.createElement('div');
     cell.className = `heatmap-cell level-${level}`;
-    cell.style.width = '12px';
-    cell.style.height = '12px';
-    cell.style.borderRadius = '2px';
-    cell.style.cursor = 'pointer';
-    
-    const formattedDate = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    cell.title = `${count} entry${count !== 1 ? 'ies' : ''} on ${formattedDate}`;
-    
+
+    const dateObj = new Date(selectedYear, selectedMonth, day);
+    const formattedDate = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const dayName = dateObj.toLocaleDateString('en-IN', { weekday: 'short' });
+    cell.title = `${count} entr${count !== 1 ? 'ies' : 'y'} on ${dayName}, ${formattedDate}`;
+
+    // Show day number inside cell
+    const dayLabel = document.createElement('span');
+    dayLabel.className = 'heatmap-day-num';
+    dayLabel.textContent = day;
+    cell.appendChild(dayLabel);
+
     grid.appendChild(cell);
-  });
+  }
+
+  // Update month total
+  if (totalEl) {
+    totalEl.innerHTML = `<i class="fa-solid fa-chart-simple" style="margin-right:5px;opacity:0.5"></i> Total entries in ${monthNames[selectedMonth]} ${selectedYear}: <strong>${monthTotal}</strong>`;
+  }
 }
+
 
 function renderProviderChart() {
   const ctx = document.getElementById('providerChart');
