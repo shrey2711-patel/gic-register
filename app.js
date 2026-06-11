@@ -20,6 +20,7 @@ let DATA = [];           // All client records
 let filteredData = [];   // Currently displayed records
 let CLAIMS = [];         // All claim records
 let filteredClaims = []; // Filtered claim records
+let currentClaimRejections = []; // In-memory rejection rounds tracker
 let activeStatusFilter = 'all';
 let dbInstance = null;
 let firebaseApp = null;
@@ -303,9 +304,8 @@ function verifyPassword() {
 }
 
 function checkAuth() {
-  if (sessionStorage.getItem('gic_auth') === '1') {
-    document.getElementById('securityOverlay').style.display = 'none';
-  }
+  const overlay = document.getElementById('securityOverlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1460,8 +1460,7 @@ function deleteClient(clientId, clientName) {
 }
 
 function wipeAllData() {
-  const pass = prompt('⚠️ DANGER ZONE\n\nEnter admin password to delete ALL records:');
-  if (pass !== MASTER_PASSWORD) { showToast('Incorrect password. Aborted.', 'error'); return; }
+  if (!confirm('⚠️ DANGER ZONE\n\nAre you sure you want to delete ALL records? This cannot be undone!')) return;
   if (!confirm(`DELETE ALL ${DATA.length} client records and ${CLAIMS.length} claim records?\n\nThis is PERMANENT and cannot be undone!`)) return;
   const count = DATA.length;
   const claimCount = CLAIMS.length;
@@ -1491,7 +1490,20 @@ function wipeAllData() {
 function updateFamilyCards(prefix, existingMembers) {
   const count = Number(document.getElementById(`${prefix}_family_count`).value) || 1;
   const container = document.getElementById(`${prefix}_familyCardsContainer`);
-  const existing = existingMembers || [];
+  
+  // Collect typed values from DOM if no existingMembers list is explicitly passed
+  let existing = existingMembers;
+  if (!existing) {
+    // Temporarily set count to current DOM element length to collect all typed items
+    const currentElements = container.querySelectorAll('.family-card-item').length;
+    const countInput = document.getElementById(`${prefix}_family_count`);
+    const originalValue = countInput.value;
+    
+    countInput.value = currentElements; // Collect whatever is currently in DOM
+    existing = collectFamilyCards(prefix);
+    countInput.value = originalValue; // Restore input value
+  }
+  
   let html = '';
   for (let i = 0; i < count; i++) {
     const m = existing[i] || {};
@@ -2038,14 +2050,18 @@ function renderForecastChart() {
 // INITIALIZATION
 // ══════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', function() {
-  checkAuth();
   startClock();
   initDatabase();
   autoConnectFirebase();
 
-  // Password Enter key
-  document.getElementById('passwordInput')?.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') verifyPassword();
+  // Auto-copy main client name to first member (Self)
+  document.getElementById('ac_name')?.addEventListener('input', function() {
+    const selfName = document.getElementById('ac_mname_0');
+    if (selfName) selfName.value = this.value;
+  });
+  document.getElementById('ed_name')?.addEventListener('input', function() {
+    const selfName = document.getElementById('ed_mname_0');
+    if (selfName) selfName.value = this.value;
   });
 
   // Load WhatsApp template
@@ -2246,8 +2262,8 @@ function deleteClaimFromDB(id, callback) {
 // CLAIMS ACTIONS & RENDER
 // ══════════════════════════════════════════════════════════════
 function updateClaimsStats() {
-  let totalClaimAmt = 0, pendingClaimAmt = 0, settledClaimAmt = 0;
-  let totalCount = CLAIMS.length, pendingCount = 0, settledCount = 0;
+  let totalClaimAmt = 0, pendingClaimAmt = 0, settledClaimAmt = 0, rejectedClaimAmt = 0;
+  let totalCount = CLAIMS.length, pendingCount = 0, settledCount = 0, rejectedCount = 0;
 
   CLAIMS.forEach(c => {
     const amt = Number(c.amount) || 0;
@@ -2261,6 +2277,9 @@ function updateClaimsStats() {
     } else if (c.status === 'approved') {
       pendingClaimAmt += amt;
       pendingCount++;
+    } else if (c.status === 'rejected') {
+      rejectedClaimAmt += amt;
+      rejectedCount++;
     }
   });
 
@@ -2270,6 +2289,8 @@ function updateClaimsStats() {
   const pendingSubEl = document.getElementById('claimStatPendingSub');
   const settledEl = document.getElementById('claimStatSettled');
   const settledSubEl = document.getElementById('claimStatSettledSub');
+  const rejectedEl = document.getElementById('claimStatRejected');
+  const rejectedSubEl = document.getElementById('claimStatRejectedSub');
 
   if (totalEl) totalEl.textContent = formatCurrency(totalClaimAmt);
   if (totalSubEl) totalSubEl.textContent = `${totalCount} claim${totalCount !== 1 ? 's' : ''} logged`;
@@ -2277,6 +2298,8 @@ function updateClaimsStats() {
   if (pendingSubEl) pendingSubEl.textContent = `${pendingCount} pending / approved`;
   if (settledEl) settledEl.textContent = formatCurrency(settledClaimAmt);
   if (settledSubEl) settledSubEl.textContent = `${settledCount} settled`;
+  if (rejectedEl) rejectedEl.textContent = formatCurrency(rejectedClaimAmt);
+  if (rejectedSubEl) rejectedSubEl.textContent = `${rejectedCount} rejected`;
 }
 
 function applyClaimsFilters() {
@@ -2328,6 +2351,26 @@ function renderClaimsTableRows() {
     const statusClass = claim.status || 'pending';
     const tr = document.createElement('tr');
     
+    // Rejections timeline markup
+    let rejectionsTimelineHtml = '';
+    if (claim.rejections && claim.rejections.length > 0) {
+      rejectionsTimelineHtml = `
+        <div class="rejections-timeline" style="margin-top:6px; padding-top:6px; border-top:1px dashed var(--platinum); display:flex; flex-direction:column; gap:4px;">
+          <div style="font-weight:700; font-size:10px; color:var(--danger); text-transform:uppercase; letter-spacing:0.5px;">Rejections History (${claim.rejections.length})</div>
+          ${claim.rejections.map((rej, rIdx) => `
+            <div style="font-size:11px; padding:6px; background:rgba(239,68,68,0.02); border:1px solid rgba(239,68,68,0.1); border-radius:4px; margin-bottom:2px; line-height:1.3">
+              <span style="font-weight:600; color:var(--danger)">Round ${rIdx+1} Rejected:</span> ${formatDate(rej.reject_date)}<br>
+              <span style="font-weight:600;">Query:</span> <span style="color:var(--iron-grey)">${escapeHtml(rej.query_reason)}</span><br>
+              ${rej.resubmit_date 
+                ? `<span style="font-weight:600; color:var(--emerald)"><i class="fa-solid fa-arrow-rotate-right" style="font-size:9px"></i> Resubmitted:</span> ${formatDate(rej.resubmit_date)}`
+                : `<span style="color:var(--orange); font-weight:600;"><i class="fa-regular fa-clock" style="font-size:9px"></i> Pending Resubmission</span>`
+              }
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
     // Dates timeline markup
     const timelineHtml = `
       <div style="font-size:11.5px;line-height:1.4">
@@ -2336,17 +2379,27 @@ function renderClaimsTableRows() {
         ${claim.date_responded ? `<strong>Responded:</strong> ${formatDate(claim.date_responded)}<br>` : ''}
         ${claim.date_approved ? `<strong>Approved:</strong> ${formatDate(claim.date_approved)}<br>` : ''}
         ${claim.date_settled ? `<strong>Settled:</strong> ${formatDate(claim.date_settled)}<br>` : ''}
+        ${rejectionsTimelineHtml}
+      </div>
+    `;
+
+    // Format claim details cell with Claim No, Intimation No, Disease
+    const claimDetailsHtml = `
+      <div class="cell-name">
+        <strong>${escapeHtml(claim.client_name)}</strong><br>
+        <small style="color:var(--iron-grey); font-weight:500">Claimant: ${escapeHtml(claim.claimant_name)}</small>
+        ${claim.disease_name ? `<br><small style="color:var(--purple); font-weight:600"><i class="fa-solid fa-virus-covid"></i> Disease: ${escapeHtml(claim.disease_name)}</small>` : ''}
+        ${(claim.claim_no || claim.intimation_no) ? `<br><small style="font-family:'JetBrains Mono'; color:var(--slate-grey); font-size:10px; line-height:1.2">` : ''}
+        ${claim.claim_no ? `Claim No: ${escapeHtml(claim.claim_no)}` : ''}
+        ${(claim.claim_no && claim.intimation_no) ? ` | ` : ''}
+        ${claim.intimation_no ? `Intimation No: ${escapeHtml(claim.intimation_no)}` : ''}
+        ${(claim.claim_no || claim.intimation_no) ? `</small>` : ''}
       </div>
     `;
 
     tr.innerHTML = `
       <td class="sr-num">${idx + 1}</td>
-      <td>
-        <div class="cell-name">
-          <strong>${escapeHtml(claim.client_name)}</strong><br>
-          <small>Claimant: ${escapeHtml(claim.claimant_name)}</small>
-        </div>
-      </td>
+      <td>${claimDetailsHtml}</td>
       <td>
         <div class="cell-plan">
           <strong>${escapeHtml(claim.plan || '—')}</strong><br>
@@ -2388,12 +2441,23 @@ function openLogClaimModal() {
   
   document.getElementById('claim_amount').value = '';
   document.getElementById('claim_status').value = 'pending';
+  document.getElementById('claim_no').value = '';
+  document.getElementById('claim_intimation_no').value = '';
+  document.getElementById('claim_disease').value = '';
   document.getElementById('claim_dateApplied').value = '';
   document.getElementById('claim_dateDocsSent').value = '';
   document.getElementById('claim_dateResponded').value = '';
   document.getElementById('claim_dateApproved').value = '';
   document.getElementById('claim_dateSettled').value = '';
   document.getElementById('claim_notes').value = '';
+  
+  currentClaimRejections = [];
+  renderClaimRejectionsModalList();
+  
+  // Clear the new round fields too
+  document.getElementById('new_reject_date').value = '';
+  document.getElementById('new_reject_resubmit_date').value = '';
+  document.getElementById('new_reject_reason').value = '';
   
   toggleClaimStatusFields();
   openModal('logClaimOverlay');
@@ -2415,12 +2479,27 @@ function openEditClaimModal(claimId) {
 
   document.getElementById('claim_amount').value = claim.amount || '';
   document.getElementById('claim_status').value = claim.status || 'pending';
+  document.getElementById('claim_no').value = claim.claim_no || '';
+  document.getElementById('claim_intimation_no').value = claim.intimation_no || '';
+  document.getElementById('claim_disease').value = claim.disease_name || '';
   document.getElementById('claim_dateApplied').value = yyyymmddToDdmmyyyy(claim.date_applied || '');
   document.getElementById('claim_dateDocsSent').value = yyyymmddToDdmmyyyy(claim.date_docs_sent || '');
   document.getElementById('claim_dateResponded').value = yyyymmddToDdmmyyyy(claim.date_responded || '');
   document.getElementById('claim_dateApproved').value = yyyymmddToDdmmyyyy(claim.date_approved || '');
   document.getElementById('claim_dateSettled').value = yyyymmddToDdmmyyyy(claim.date_settled || '');
   document.getElementById('claim_notes').value = claim.notes || '';
+
+  currentClaimRejections = (claim.rejections || []).map(rej => ({
+    reject_date: yyyymmddToDdmmyyyy(rej.reject_date || ''),
+    resubmit_date: yyyymmddToDdmmyyyy(rej.resubmit_date || ''),
+    query_reason: rej.query_reason || ''
+  }));
+  renderClaimRejectionsModalList();
+  
+  // Clear the new round fields
+  document.getElementById('new_reject_date').value = '';
+  document.getElementById('new_reject_resubmit_date').value = '';
+  document.getElementById('new_reject_reason').value = '';
 
   toggleClaimStatusFields();
   openModal('logClaimOverlay');
@@ -2442,6 +2521,15 @@ function toggleClaimStatusFields() {
   } else {
     approvedGrp.style.display = 'none';
     settledGrp.style.display = 'none';
+  }
+
+  const rejectionsSection = document.getElementById('claim_rejectionsSection');
+  if (rejectionsSection) {
+    if (status === 'rejected' || currentClaimRejections.length > 0) {
+      rejectionsSection.style.display = 'block';
+    } else {
+      rejectionsSection.style.display = 'none';
+    }
   }
 }
 
@@ -2536,6 +2624,11 @@ async function submitLogClaim() {
   const claimantName = document.getElementById('claim_claimant').value;
   const amount = document.getElementById('claim_amount').value;
   const status = document.getElementById('claim_status').value;
+  
+  const claimNo = document.getElementById('claim_no').value.trim();
+  const intimationNo = document.getElementById('claim_intimation_no').value.trim();
+  const diseaseName = document.getElementById('claim_disease').value.trim();
+  
   const dateAppliedRaw = document.getElementById('claim_dateApplied').value.trim();
   const dateDocsSentRaw = document.getElementById('claim_dateDocsSent').value.trim();
   const dateRespondedRaw = document.getElementById('claim_dateResponded').value.trim();
@@ -2575,6 +2668,34 @@ async function submitLogClaim() {
     }
   }
 
+  // Validate and clean rejections
+  const rejections = [];
+  for (let i = 0; i < currentClaimRejections.length; i++) {
+    const rej = currentClaimRejections[i];
+    const rejectDateRaw = (rej.reject_date || '').trim();
+    const resubmitDateRaw = (rej.resubmit_date || '').trim();
+    const queryReason = (rej.query_reason || '').trim();
+    
+    if (!rejectDateRaw) {
+      showToast(`Please enter the Date Rejected for Rejection Round ${i + 1}`, 'error'); return;
+    }
+    if (!isValidDateString(rejectDateRaw)) {
+      showToast(`Please enter a valid Date Rejected (DD-MM-YYYY) for Rejection Round ${i + 1}`, 'error'); return;
+    }
+    if (resubmitDateRaw && !isValidDateString(resubmitDateRaw)) {
+      showToast(`Please enter a valid Date Resubmitted (DD-MM-YYYY) for Rejection Round ${i + 1}`, 'error'); return;
+    }
+    if (!queryReason) {
+      showToast(`Please enter the Rejection Reason/Query for Rejection Round ${i + 1}`, 'error'); return;
+    }
+    
+    rejections.push({
+      reject_date: ddmmyyyyToYyyymmdd(rejectDateRaw),
+      resubmit_date: resubmitDateRaw ? ddmmyyyyToYyyymmdd(resubmitDateRaw) : '',
+      query_reason: queryReason
+    });
+  }
+
   const client = DATA.find(c => c.id === clientId);
   if (!client) {
     showToast('Selected client not found', 'error');
@@ -2593,12 +2714,16 @@ async function submitLogClaim() {
     claimant_name: claimantName,
     amount: Number(amount) || 0,
     status,
+    claim_no: claimNo,
+    intimation_no: intimationNo,
+    disease_name: diseaseName,
     date_applied: ddmmyyyyToYyyymmdd(dateAppliedRaw),
     date_docs_sent: dateDocsSentRaw ? ddmmyyyyToYyyymmdd(dateDocsSentRaw) : '',
     date_responded: dateRespondedRaw ? ddmmyyyyToYyyymmdd(dateRespondedRaw) : '',
     date_approved: dateApprovedRaw ? ddmmyyyyToYyyymmdd(dateApprovedRaw) : '',
     date_settled: dateSettledRaw ? ddmmyyyyToYyyymmdd(dateSettledRaw) : '',
     notes,
+    rejections,
     updated_at: new Date().toISOString()
   };
 
@@ -2646,4 +2771,149 @@ function deleteClaim(claimId, claimantName) {
   renderClaimsTable();
   showToast(`Deleted claim: ${claimantName}`, 'info');
   logActivity(`🗑️ Deleted claim: ${claimantName}`, 'error');
+}
+
+// ══════════════════════════════════════════════════════════════
+// EXCEL EXPORT FOR CLAIMS
+// ══════════════════════════════════════════════════════════════
+function exportClaimsToExcel() {
+  if (CLAIMS.length === 0) { showToast('No claims to export', 'error'); return; }
+  const rows = CLAIMS.map((c, i) => {
+    // Format rejections history as a single string
+    const rejectionsStr = (c.rejections || []).map((rej, rIdx) => 
+      `Round ${rIdx+1}: Rejected on ${formatDate(rej.reject_date)} (Query: ${rej.query_reason})${rej.resubmit_date ? `, Resubmitted on ${formatDate(rej.resubmit_date)}` : ' - Pending Resubmission'}`
+    ).join(' | ');
+
+    return {
+      'Sr No': i + 1,
+      'Client Name': c.client_name,
+      'Claimant Name': c.claimant_name,
+      'Insurance Provider': c.provider || '',
+      'Plan Name': c.plan || '',
+      'Claim Number': c.claim_no || '',
+      'Claim Intimation Number': c.intimation_no || '',
+      'Name of Disease / Diagnosis': c.disease_name || '',
+      'Claim Amount (₹)': c.amount || 0,
+      'Status': (c.status || '').toUpperCase(),
+      'Date Applied to Co.': formatDate(c.date_applied),
+      'Date Docs & Bills Sent': formatDate(c.date_docs_sent),
+      'Company Response Date': formatDate(c.date_responded),
+      'Approval Date': formatDate(c.date_approved),
+      'Settlement Date': formatDate(c.date_settled),
+      'Rejection History': rejectionsStr || 'None',
+      'Remarks': c.notes || '',
+      'Created On': formatDate(c.created_at)
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Claims');
+
+  // Style header
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let C = range.s.c; C <= range.e.c; C++) {
+    const addr = XLSX.utils.encode_cell({ r: 0, c: C });
+    if (!ws[addr]) continue;
+    ws[addr].s = { font: { bold: true }, fill: { fgColor: { rgb: '9333EA' } } }; // Purple color for claims excel header
+  }
+  ws['!cols'] = Object.keys(rows[0]).map(() => ({ wch: 20 }));
+
+  const now = new Date();
+  const filename = `GIC_Claims_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showToast(`✅ Claims Excel exported: ${filename}`, 'success');
+  logActivity(`📊 Claims Excel report generated: ${CLAIMS.length} records`, 'success');
+}
+
+// ══════════════════════════════════════════════════════════════
+// CLAIM REJECTIONS LIST MANAGER
+// ══════════════════════════════════════════════════════════════
+function renderClaimRejectionsModalList() {
+  const listDiv = document.getElementById('claim_rejectionsList');
+  if (!listDiv) return;
+  listDiv.innerHTML = '';
+  
+  if (currentClaimRejections.length === 0) {
+    listDiv.innerHTML = '<div style="color:var(--text-light);font-size:12px;font-style:italic;text-align:center;padding:10px;border:1px dashed var(--platinum);border-radius:4px">No rejection rounds recorded yet.</div>';
+    return;
+  }
+  
+  currentClaimRejections.forEach((rej, idx) => {
+    const card = document.createElement('div');
+    card.className = 'rejection-round-card';
+    card.style = 'border: 1px solid var(--platinum); border-radius: 6px; padding: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.02); display: flex; flex-direction: column; gap: 8px; position: relative;';
+    
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; padding-bottom:6px; margin-bottom:4px">
+        <span style="font-weight:600; font-size:12px; color:var(--danger)"><i class="fa-solid fa-circle-exclamation"></i> Rejection Round ${idx + 1}</span>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="removeRejectionRound(${idx})" style="padding:2px 6px; color:var(--danger); height:auto">
+          <i class="fa-regular fa-trash-can" style="font-size:11px"></i> Remove
+        </button>
+      </div>
+      <div class="form-grid" style="gap:10px; margin-bottom:0">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" style="font-size:10px">Date Rejected</label>
+          <input type="text" class="form-input date-mask" value="${escapeHtml(rej.reject_date || '')}" oninput="updateRejectionField(${idx}, 'reject_date', this.value)" placeholder="DD-MM-YYYY" maxlength="10" style="padding:5px 8px; font-size:11.5px; height:30px">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" style="font-size:10px">Date Resubmitted</label>
+          <input type="text" class="form-input date-mask" value="${escapeHtml(rej.resubmit_date || '')}" oninput="updateRejectionField(${idx}, 'resubmit_date', this.value)" placeholder="DD-MM-YYYY" maxlength="10" style="padding:5px 8px; font-size:11.5px; height:30px">
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:4px; margin-bottom:0">
+        <label class="form-label" style="font-size:10px">Rejection Reason / Query Text</label>
+        <textarea class="form-textarea" oninput="updateRejectionField(${idx}, 'query_reason', this.value)" placeholder="Enter rejection reason or query details..." rows="2" style="font-size:11.5px; padding:6px 10px; min-height:45px">${escapeHtml(rej.query_reason || '')}</textarea>
+      </div>
+    `;
+    listDiv.appendChild(card);
+  });
+}
+
+function updateRejectionField(idx, field, val) {
+  if (currentClaimRejections[idx]) {
+    currentClaimRejections[idx][field] = val;
+  }
+}
+
+function removeRejectionRound(idx) {
+  if (confirm(`Remove Rejection Round ${idx + 1}?`)) {
+    currentClaimRejections.splice(idx, 1);
+    renderClaimRejectionsModalList();
+    toggleClaimStatusFields();
+  }
+}
+
+function addRejectionRoundRow() {
+  const rejectDateRaw = document.getElementById('new_reject_date').value.trim();
+  const resubmitDateRaw = document.getElementById('new_reject_resubmit_date').value.trim();
+  const queryReason = document.getElementById('new_reject_reason').value.trim();
+  
+  if (!rejectDateRaw) {
+    showToast('Please enter the Date Rejected', 'error'); return;
+  }
+  if (!isValidDateString(rejectDateRaw)) {
+    showToast('Please enter a valid Date Rejected (DD-MM-YYYY)', 'error'); return;
+  }
+  if (resubmitDateRaw && !isValidDateString(resubmitDateRaw)) {
+    showToast('Please enter a valid Date Resubmitted (DD-MM-YYYY)', 'error'); return;
+  }
+  if (!queryReason) {
+    showToast('Please enter the Rejection Reason / Query details', 'error'); return;
+  }
+  
+  currentClaimRejections.push({
+    reject_date: rejectDateRaw,
+    resubmit_date: resubmitDateRaw,
+    query_reason: queryReason
+  });
+  
+  // Clear fields
+  document.getElementById('new_reject_date').value = '';
+  document.getElementById('new_reject_resubmit_date').value = '';
+  document.getElementById('new_reject_reason').value = '';
+  
+  renderClaimRejectionsModalList();
+  toggleClaimStatusFields();
+  showToast('Rejection round added!', 'success');
 }

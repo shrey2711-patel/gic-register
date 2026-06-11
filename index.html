@@ -23,7 +23,7 @@
 <!-- ═══════════════════════════════════════════════
      SECURITY OVERLAY
 ═══════════════════════════════════════════════ -->
-<div class="security-overlay" id="securityOverlay">
+<div class="security-overlay" id="securityOverlay" style="display: none;">
   <div class="security-card">
     <div class="security-logo-wrap">
       <img src="logo.png" alt="Midas Money Care" onerror="this.style.display='none'">
@@ -290,7 +290,7 @@
       <div id="claimsView" class="hidden">
 
         <!-- Claims Stats -->
-        <div class="stats-strip" style="margin-bottom: 20px;">
+        <div class="stats-strip claims-stats-strip" style="margin-bottom: 20px;">
           <div class="stat-badge" style="--badge-color:var(--primary);--badge-color-dim:var(--primary-dim)">
             <div class="stat-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
             <div class="stat-label">Total Claims</div>
@@ -301,13 +301,19 @@
             <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
             <div class="stat-label">Pending Claims</div>
             <div class="stat-value" id="claimStatPending">₹0</div>
-            <div class="stat-sub" id="claimStatPendingSub">0 pending</div>
+            <div class="stat-sub" id="claimStatPendingSub">0 pending / approved</div>
           </div>
           <div class="stat-badge" style="--badge-color:var(--emerald);--badge-color-dim:var(--emerald-dim)">
             <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
             <div class="stat-label">Settled Claims</div>
             <div class="stat-value" id="claimStatSettled">₹0</div>
             <div class="stat-sub" id="claimStatSettledSub">0 settled</div>
+          </div>
+          <div class="stat-badge" style="--badge-color:var(--danger);--badge-color-dim:var(--danger-dim)">
+            <div class="stat-icon"><i class="fa-solid fa-circle-xmark"></i></div>
+            <div class="stat-label">Rejected Claims</div>
+            <div class="stat-value" id="claimStatRejected">₹0</div>
+            <div class="stat-sub" id="claimStatRejectedSub">0 rejected</div>
           </div>
         </div>
 
@@ -327,6 +333,9 @@
               <option value="settled">Settled</option>
               <option value="rejected">Rejected</option>
             </select>
+            <button class="btn btn-secondary" onclick="exportClaimsToExcel()" style="background:var(--emerald-dim); border-color:rgba(16,185,129,0.3); color:var(--emerald)">
+              <i class="fa-regular fa-file-excel"></i> Export Claims Excel
+            </button>
             <button class="btn btn-primary" onclick="openLogClaimModal()">
               <i class="fa-solid fa-plus"></i> Log New Claim
             </button>
@@ -954,7 +963,7 @@
       <!-- Section 2: Claim Details -->
       <div class="form-section">
         <div class="form-section-title"><i class="fa-solid fa-file-contract"></i> Claim Information</div>
-        <div class="form-grid">
+        <div class="form-grid" style="margin-bottom: 12px;">
           <div class="form-group">
             <label class="form-label">Claim Amount (₹) <span class="required">*</span></label>
             <div class="form-input-prefix">
@@ -970,6 +979,20 @@
               <option value="settled">Settled</option>
               <option value="rejected">Rejected</option>
             </select>
+          </div>
+        </div>
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label class="form-label">Claim Number</label>
+            <input type="text" class="form-input" id="claim_no" placeholder="e.g. CLM123456">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Claim Intimation Number</label>
+            <input type="text" class="form-input" id="claim_intimation_no" placeholder="e.g. INT987654">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Name of Disease / Diagnosis</label>
+            <input type="text" class="form-input" id="claim_disease" placeholder="e.g. Dengue, Cataract">
           </div>
         </div>
       </div>
@@ -997,6 +1020,44 @@
           <div class="form-group" id="claim_dateSettledGroup">
             <label class="form-label">Settlement Date (Credit to Account)</label>
             <input type="text" class="form-input date-mask" id="claim_dateSettled" placeholder="DD-MM-YYYY" maxlength="10">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3b: Rejection & Resubmission History -->
+      <div class="form-section" id="claim_rejectionsSection" style="display:none; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.01); border-radius: 8px; padding: 15px;">
+        <div class="form-section-title" style="color:var(--danger); border-bottom-color: rgba(239,68,68,0.2)">
+          <i class="fa-solid fa-circle-xmark"></i> Rejection & Resubmission History
+        </div>
+        
+        <!-- Rejection List -->
+        <div class="rejections-list" id="claim_rejectionsList" style="margin-bottom:15px; display:flex; flex-direction:column; gap:10px;">
+          <!-- Items populated dynamically -->
+        </div>
+
+        <!-- Add New Rejection Round Form -->
+        <div class="add-rejection-card" style="background:rgba(239,68,68,0.02); border:1px dashed rgba(239,68,68,0.3); border-radius:6px; padding:12px;">
+          <div style="font-weight:600; font-size:12px; margin-bottom:8px; color:var(--danger)">
+            <i class="fa-solid fa-circle-plus"></i> Log Rejection Round / Query Raised
+          </div>
+          <div class="form-grid" style="gap:10px; margin-bottom:8px;">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label" style="font-size:11px">Date Rejected by Co.</label>
+              <input type="text" class="form-input date-mask" id="new_reject_date" placeholder="DD-MM-YYYY" maxlength="10">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label" style="font-size:11px">Date Resubmitted to Co. <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+              <input type="text" class="form-input date-mask" id="new_reject_resubmit_date" placeholder="DD-MM-YYYY" maxlength="10">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label class="form-label" style="font-size:11px">Query / Reasons why Rejected <span class="required">*</span></label>
+            <textarea class="form-textarea" id="new_reject_reason" placeholder="Enter query details, reasons why rejected, or list missing documents..." rows="2" style="font-size:12px"></textarea>
+          </div>
+          <div style="text-align:right;">
+            <button type="button" class="btn btn-primary" onclick="addRejectionRoundRow()" style="padding:5px 12px; font-size:12px; background:var(--danger); border-color:var(--danger)">
+              <i class="fa-solid fa-plus"></i> Add Rejection Round
+            </button>
           </div>
         </div>
       </div>
