@@ -1029,6 +1029,13 @@
             <label class="form-label">Settlement Date (Credit to Account)</label>
             <input type="text" class="form-input date-mask" id="claim_dateSettled" placeholder="DD-MM-YYYY" maxlength="10">
           </div>
+          <div class="form-group" id="claim_settledAmountGroup" style="display:none;">
+            <label class="form-label">Settled Amount (₹) <span class="required">*</span></label>
+            <div class="form-input-prefix">
+              <span>₹</span>
+              <input type="number" class="form-input" id="claim_settledAmount" placeholder="e.g. 45000">
+            </div>
+          </div>
         </div>
       </div>
 

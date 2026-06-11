@@ -2269,7 +2269,7 @@ function updateClaimsStats() {
     const amt = Number(c.amount) || 0;
     totalClaimAmt += amt;
     if (c.status === 'settled') {
-      settledClaimAmt += amt;
+      settledClaimAmt += Number(c.settled_amount) || amt;
       settledCount++;
     } else if (c.status === 'pending') {
       pendingClaimAmt += amt;
@@ -2415,7 +2415,11 @@ function renderClaimsTableRows() {
       </td>
       <td>
         <div class="cell-premium">
-          <strong>${formatCurrency(claim.amount)}</strong>
+          <strong>Claimed: ${formatCurrency(claim.amount)}</strong>
+          ${claim.status === 'settled' && claim.settled_amount 
+            ? `<br><small style="color:var(--emerald); font-weight:700">Settled: ${formatCurrency(claim.settled_amount)}</small>` 
+            : ''
+          }
         </div>
       </td>
       <td>
@@ -2457,6 +2461,8 @@ function openLogClaimModal() {
   document.getElementById('claim_dateApproved').value = '';
   document.getElementById('claim_dateSettled').value = '';
   document.getElementById('claim_notes').value = '';
+  const settledAmtInput = document.getElementById('claim_settledAmount');
+  if (settledAmtInput) settledAmtInput.value = '';
   
   currentClaimRejections = [];
   renderClaimRejectionsModalList();
@@ -2495,6 +2501,8 @@ function openEditClaimModal(claimId) {
   document.getElementById('claim_dateApproved').value = yyyymmddToDdmmyyyy(claim.date_approved || '');
   document.getElementById('claim_dateSettled').value = yyyymmddToDdmmyyyy(claim.date_settled || '');
   document.getElementById('claim_notes').value = claim.notes || '';
+  const settledAmtInput = document.getElementById('claim_settledAmount');
+  if (settledAmtInput) settledAmtInput.value = claim.settled_amount || '';
 
   currentClaimRejections = (claim.rejections || []).map(rej => ({
     reject_date: yyyymmddToDdmmyyyy(rej.reject_date || ''),
@@ -2519,15 +2527,20 @@ function toggleClaimStatusFields() {
 
   if (!approvedGrp || !settledGrp) return;
 
+  const settledAmtGrp = document.getElementById('claim_settledAmountGroup');
+
   if (status === 'approved') {
     approvedGrp.style.display = 'flex';
     settledGrp.style.display = 'none';
+    if (settledAmtGrp) settledAmtGrp.style.display = 'none';
   } else if (status === 'settled') {
     approvedGrp.style.display = 'flex';
     settledGrp.style.display = 'flex';
+    if (settledAmtGrp) settledAmtGrp.style.display = 'flex';
   } else {
     approvedGrp.style.display = 'none';
     settledGrp.style.display = 'none';
+    if (settledAmtGrp) settledAmtGrp.style.display = 'none';
   }
 
   const rejectionsSection = document.getElementById('claim_rejectionsSection');
@@ -2642,6 +2655,7 @@ async function submitLogClaim() {
   const dateApprovedRaw = document.getElementById('claim_dateApproved').value.trim();
   const dateSettledRaw = document.getElementById('claim_dateSettled').value.trim();
   const notes = document.getElementById('claim_notes').value.trim();
+  const settledAmtVal = document.getElementById('claim_settledAmount') ? document.getElementById('claim_settledAmount').value.trim() : '';
 
   if (!clientId || !claimantName || !amount || !dateAppliedRaw) {
     showToast('Please fill all required (*) fields', 'error');
@@ -2672,6 +2686,12 @@ async function submitLogClaim() {
     }
     if (!isValidDateString(dateSettledRaw)) {
       showToast('Please enter a valid Settlement Date in DD-MM-YYYY format', 'error'); return;
+    }
+    if (!settledAmtVal) {
+      showToast('Please enter the Settled Amount', 'error'); return;
+    }
+    if (isNaN(settledAmtVal) || Number(settledAmtVal) <= 0) {
+      showToast('Please enter a valid Settled Amount', 'error'); return;
     }
   }
 
@@ -2720,6 +2740,7 @@ async function submitLogClaim() {
     plan: client.plan || '',
     claimant_name: claimantName,
     amount: Number(amount) || 0,
+    settled_amount: status === 'settled' ? (Number(settledAmtVal) || 0) : 0,
     status,
     claim_no: claimNo,
     intimation_no: intimationNo,
@@ -2801,6 +2822,7 @@ function exportClaimsToExcel() {
       'Claim Intimation Number': c.intimation_no || '',
       'Name of Disease / Diagnosis': c.disease_name || '',
       'Claim Amount (₹)': c.amount || 0,
+      'Settled Amount (₹)': c.settled_amount || 0,
       'Status': (c.status || '').toUpperCase(),
       'Date Applied to Co.': formatDate(c.date_applied),
       'Date Docs & Bills Sent': formatDate(c.date_docs_sent),
