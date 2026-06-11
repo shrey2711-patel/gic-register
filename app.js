@@ -37,6 +37,8 @@ let currentEditId = null;
 let providerChartInst = null;
 let urgencyChartInst = null;
 let forecastChartInst = null;
+let claimRatioChartInst = null;
+let revenueTrendChartInst = null;
 
 // ══════════════════════════════════════════════════════════════
 // SAMPLE DATA — 10 REALISTIC TEST CLIENTS
@@ -823,10 +825,31 @@ document.addEventListener('click', function(e) {
     closeModal(e.target.id);
   }
 });
-// Close on Escape
+// Global keyboard shortcuts and Escape to close modal
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-overlay.open').forEach(m => closeModal(m.id));
+  }
+  
+  const isCtrl = e.ctrlKey || e.metaKey;
+  if (isCtrl) {
+    if (e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      openAddClientModal();
+    } else if (e.key.toLowerCase() === 'f') {
+      const searchInput = document.getElementById('searchInput');
+      if (searchInput) {
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+      }
+    } else if (e.key.toLowerCase() === 'e') {
+      e.preventDefault();
+      exportToExcel();
+    } else if (e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      toggleDarkMode();
+    }
   }
 });
 
@@ -940,7 +963,8 @@ function applyFiltersAndStats() {
       return false;
     });
 
-    return { ...c, _days: days, _isFuture: isFuture, _isRenewed: isRenewed };
+    const isRenewedFinal = c.renewed || isRenewed;
+    return { ...c, _days: days, _isFuture: isFuture, _isRenewed: isRenewedFinal };
   });
 
   // Compute stats (all records, no status filter)
@@ -1008,6 +1032,19 @@ function applyFiltersAndStats() {
   document.getElementById('stat3Days').textContent = days3;
   document.getElementById('statExpiredToday').textContent = expiredToday;
   document.getElementById('statExpiredSub').textContent = `${expired} total expired`;
+
+  const renewedCount = enriched.filter(c => c._isRenewed).length;
+  const expiredCount = enriched.filter(c => c._days < 0 && !c._isRenewed).length;
+  const totalApplicable = renewedCount + expiredCount;
+  const renewalRate = totalApplicable > 0 ? Math.round((renewedCount / totalApplicable) * 100) : 100;
+  
+  const statRenewalRate = document.getElementById('statRenewalRate');
+  if (statRenewalRate) statRenewalRate.textContent = `${renewalRate}%`;
+  const statRenewalSub = document.getElementById('statRenewalSub');
+  if (statRenewalSub) statRenewalSub.textContent = `${renewedCount} of ${totalApplicable} renewed`;
+
+  // Update notification bell dropdown
+  updateNotifBell();
 
   // Filter
   filteredData = enriched.filter(c => {
@@ -1107,12 +1144,12 @@ function renderTable() {
     tr.className = rowClass;
     tr.innerHTML = `
       <td style="width:40px;padding-left:20px">
-        <input type="checkbox" class="cb-custom row-cb" data-id="${client.id}">
+        <input type="checkbox" class="cb-custom row-cb" data-id="${client.id}" onchange="updateBulkBar()">
       </td>
       <td class="sr-num">${idx + 1}</td>
       <td>
         <div class="cell-name">
-          <strong>${escapeHtml(client.name)}</strong><br>
+          <strong class="clickable-name" onclick="openClientProfile('${client.id}')">${escapeHtml(client.name)}</strong><br>
           <small><i class="fa-solid fa-phone" style="font-size:9px;color:var(--text-light)"></i> ${cleanMobile(client.mobile) || '—'}</small>
           ${client.profession ? `<br><small style="color:var(--text-light);font-size:10px">${escapeHtml(client.profession)}</small>` : ''}
           <br><small style="color:var(--slate-grey);font-size:9px;font-style:italic;" title="Created Timestamp"><i class="fa-regular fa-clock" style="font-size:8px"></i> Created: ${formatCreationTimestamp(client.created_at)}</small>
@@ -1153,6 +1190,11 @@ function renderTable() {
           <button class="action-btn renew" title="Renew Policy" onclick="openRenewModal('${client.id}')">
             <i class="fa-solid fa-arrows-rotate"></i>
           </button>
+          ${!client._isRenewed ? `
+          <button class="action-btn mark-renewed" title="Quick Mark as Renewed" onclick="markAsRenewed('${client.id}'); event.stopPropagation();" style="color:var(--emerald)">
+            <i class="fa-solid fa-square-check"></i>
+          </button>
+          ` : ''}
           <button class="action-btn family ${isExpanded ? 'active' : ''}" title="Show/Hide Family Members" onclick="toggleFamilyRow('${client.id}')">
             <i class="fa-solid fa-people-group"></i>
           </button>
@@ -1896,6 +1938,8 @@ function renderAnalytics() {
   renderProviderChart();
   renderUrgencyChart();
   renderForecastChart();
+  renderClaimRatioChart();
+  renderRevenueTrendChart();
   renderWorkHeatmap();
 }
 
@@ -2180,6 +2224,7 @@ function renderForecastChart() {
 // INITIALIZATION
 // ══════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', function() {
+  initDarkMode();
   startClock();
   initDatabase();
   autoConnectFirebase();
@@ -3072,4 +3117,655 @@ function addRejectionRoundRow() {
   renderClaimRejectionsModalList();
   toggleClaimStatusFields();
   showToast('Query round added!', 'success');
+}
+
+// ══════════════════════════════════════════════════════════════
+// UPGRADED FEATURES IMPLEMENTATION
+// ══════════════════════════════════════════════════════════════
+
+// 1. Notification Dropdown Toggle
+function toggleNotifDropdown(event) {
+  if (event) event.stopPropagation();
+  const dropdown = document.getElementById('notifDropdown');
+  if (!dropdown) return;
+  const isShow = dropdown.style.display === 'none';
+  dropdown.style.display = isShow ? 'block' : 'none';
+  
+  if (isShow) {
+    const closeNotif = (e) => {
+      if (!e.target.closest('.notif-bell-container')) {
+        dropdown.style.display = 'none';
+        document.removeEventListener('click', closeNotif);
+      }
+    };
+    document.addEventListener('click', closeNotif);
+  }
+}
+
+// Update Notification Bell and Dropdown
+function updateNotifBell() {
+  const notifList = document.getElementById('notifList');
+  const notifBadge = document.getElementById('notifBadge');
+  const notifCountText = document.getElementById('notifCountText');
+  
+  if (!notifList || !notifBadge || !notifCountText) return;
+  
+  const expiring = DATA.filter(c => {
+    const days = daysLeft(c.end_date);
+    const isFuture = isFuturePolicy(c.start_date);
+    
+    // Check if there is a newer policy (renewal)
+    const isRenewed = DATA.some(other => {
+      if (other.id === c.id) return false;
+      const hasSamePolicyNo = c.policy_no && other.policy_no && 
+                              c.policy_no.trim() !== '' && 
+                              c.policy_no.trim().toLowerCase() === other.policy_no.trim().toLowerCase();
+      const hasSameClientAndPlan = (!c.policy_no || !other.policy_no || c.policy_no.trim() === '' || other.policy_no.trim() === '') &&
+                                    c.name && other.name &&
+                                    c.name.trim().toLowerCase() === other.name.trim().toLowerCase() &&
+                                    c.provider && other.provider &&
+                                    c.provider.trim().toLowerCase() === other.provider.trim().toLowerCase() &&
+                                    c.plan && other.plan &&
+                                    c.plan.trim().toLowerCase() === other.plan.trim().toLowerCase();
+      if (!hasSamePolicyNo && !hasSameClientAndPlan) return false;
+      const cStart = new Date(c.start_date || c.created_at || 0);
+      const otherStart = new Date(other.start_date || other.created_at || 0);
+      return otherStart > cStart && !other._isFuture;
+    });
+
+    return !c.renewed && !isRenewed && !isFuture && days >= 0 && days <= 7;
+  });
+
+  // Sort by days remaining (closest first)
+  expiring.sort((a, b) => daysLeft(a.end_date) - daysLeft(b.end_date));
+
+  const count = expiring.length;
+  if (count > 0) {
+    notifBadge.textContent = count;
+    notifBadge.style.display = 'flex';
+    notifCountText.textContent = `${count} policy expiring in 7 days`;
+  } else {
+    notifBadge.style.display = 'none';
+    notifCountText.textContent = 'No policies expiring soon';
+  }
+
+  notifList.innerHTML = '';
+  if (count === 0) {
+    notifList.innerHTML = '<div class="notif-empty">No policies expiring soon</div>';
+    return;
+  }
+
+  expiring.forEach(c => {
+    const days = daysLeft(c.end_date);
+    const div = document.createElement('div');
+    div.className = 'notif-item';
+    div.innerHTML = `
+      <div class="notif-item-content">
+        <strong>${escapeHtml(c.name)}</strong>
+        <div>${escapeHtml(c.provider)} — ${escapeHtml(c.plan || '—')}</div>
+        <small class="notif-days ${days <= 3 ? 'urgent' : ''}">
+          Expires: ${formatDate(c.end_date)} (${days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days + ' days left'})
+        </small>
+      </div>
+      <button class="notif-btn" title="Send WhatsApp Reminder" onclick="sendWhatsApp('${c.id}'); event.stopPropagation();">
+        <i class="fa-brands fa-whatsapp"></i>
+      </button>
+    `;
+    div.onclick = () => {
+      openClientProfile(c.id);
+      document.getElementById('notifDropdown').style.display = 'none';
+    };
+    notifList.appendChild(div);
+  });
+}
+
+// 2. Open Client Detailed Profile View
+function openClientProfile(clientId) {
+  const client = DATA.find(c => c.id === clientId);
+  if (!client) return;
+
+  const clientClaims = CLAIMS.filter(claim => claim.client_id === clientId);
+
+  // Set header details
+  document.getElementById('viewClientName').textContent = client.name;
+  document.getElementById('viewClientSub').textContent = `ID: ${client.id} | Premium Mode: ${getPremiumModeLabel(client.premium_mode)}`;
+
+  // Set up the body content
+  let bodyHtml = `
+    <div class="profile-container">
+      <div class="profile-section">
+        <h4><i class="fa-solid fa-address-card"></i> Contact & General Details</h4>
+        <div class="profile-grid">
+          <div><strong>Mobile:</strong> <span>${escapeHtml(client.mobile || '—')}</span></div>
+          <div><strong>Email:</strong> <span>${escapeHtml(client.email || '—')}</span></div>
+          <div><strong>Profession:</strong> <span>${escapeHtml(client.profession || '—')}</span></div>
+          <div><strong>Created:</strong> <span>${formatCreationTimestamp(client.created_at)}</span></div>
+          <div class="full-width"><strong>Address:</strong> <span>${escapeHtml(client.address || '—')}</span></div>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <h4><i class="fa-solid fa-file-shield"></i> Policy Details</h4>
+        <div class="profile-grid">
+          <div><strong>Provider:</strong> <span>${escapeHtml(client.provider || '—')}</span></div>
+          <div><strong>Plan Name:</strong> <span>${escapeHtml(client.plan || '—')}</span></div>
+          <div><strong>Policy No:</strong> <span>${escapeHtml(client.policy_no || '—')}</span></div>
+          <div><strong>Premium Amount:</strong> <span class="premium-highlight">${formatCurrency(client.premium_amount)}</span></div>
+          <div><strong>Commission:</strong> <span>${formatCurrency(client.commission_amount)}</span></div>
+          <div><strong>Start Date:</strong> <span>${formatDate(client.start_date)}</span></div>
+          <div><strong>End Date:</strong> <span>${formatDate(client.end_date)}</span></div>
+          <div><strong>Collection Date:</strong> <span>${client.collection_date ? formatDate(client.collection_date) : '—'}</span></div>
+        </div>
+      </div>
+  `;
+
+  // Family members
+  bodyHtml += `
+      <div class="profile-section">
+        <h4><i class="fa-solid fa-people-group"></i> Family Members</h4>
+  `;
+  if (client.family_members && client.family_members.length > 0) {
+    bodyHtml += `<div class="profile-family-list">`;
+    client.family_members.forEach(m => {
+      const typeLabel = m.type === 'other' ? (m.other_label || 'Other') : getMemberTypeLabel(m.type);
+      const age = m.dob ? Math.floor((Date.now() - new Date(m.dob)) / (365.25 * 86400000)) : null;
+      bodyHtml += `
+        <div class="profile-family-card">
+          <div class="member-header">
+            <strong>${escapeHtml(m.name)}</strong>
+            <span class="member-tag tag-${m.type}">${typeLabel}</span>
+          </div>
+          <div class="member-details">
+            ${m.gender ? `<span>Gender: ${m.gender}</span>` : ''}
+            ${age !== null ? `<span>Age: ${age} yrs</span>` : ''}
+            ${m.dob ? `<span>DOB: ${formatDate(m.dob)}</span>` : ''}
+            ${m.height ? `<span>H: ${m.height}</span>` : ''}
+            ${m.weight ? `<span>W: ${m.weight}kg</span>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    bodyHtml += `</div>`;
+  } else {
+    bodyHtml += `<div class="notif-empty">No family members registered</div>`;
+  }
+  bodyHtml += `</div>`;
+
+  // Claims history
+  bodyHtml += `
+      <div class="profile-section">
+        <h4><i class="fa-solid fa-file-invoice-dollar"></i> Claims History</h4>
+  `;
+  if (clientClaims.length > 0) {
+    bodyHtml += `<div class="profile-claims-table-wrap">
+      <table class="profile-claims-table">
+        <thead>
+          <tr>
+            <th>Claimant</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Applied Date</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    clientClaims.forEach(claim => {
+      bodyHtml += `
+        <tr>
+          <td><strong>${escapeHtml(claim.claimant_name)}</strong></td>
+          <td>${formatCurrency(claim.amount)}</td>
+          <td><span class="claim-badge badge-${claim.status}">${claim.status.toUpperCase()}</span></td>
+          <td>${formatDate(claim.date_applied)}</td>
+          <td><small>${escapeHtml(claim.notes || '—')}</small></td>
+        </tr>
+      `;
+    });
+    bodyHtml += `</tbody></table></div>`;
+  } else {
+    bodyHtml += `<div class="notif-empty">No claims recorded for this client</div>`;
+  }
+  bodyHtml += `
+      </div>
+    </div>
+  `;
+
+  document.getElementById('viewClientBody').innerHTML = bodyHtml;
+
+  // Edit action
+  const viewEditBtn = document.getElementById('viewEditBtn');
+  if (viewEditBtn) {
+    viewEditBtn.onclick = () => {
+      closeModal('viewClientOverlay');
+      openEditModal(client.id);
+    };
+  }
+
+  // Add a PDF export button in the footer if not present
+  const footer = document.querySelector('#viewClientOverlay .modal-footer');
+  let pdfBtn = document.getElementById('profilePdfBtn');
+  if (!pdfBtn && footer) {
+    pdfBtn = document.createElement('button');
+    pdfBtn.id = 'profilePdfBtn';
+    pdfBtn.className = 'btn btn-secondary';
+    pdfBtn.style.marginRight = 'auto'; // push left
+    pdfBtn.innerHTML = '<i class="fa-solid fa-file-pdf" style="color:var(--danger)"></i> Download PDF';
+    footer.insertBefore(pdfBtn, footer.firstChild);
+  }
+  if (pdfBtn) {
+    pdfBtn.onclick = () => exportClientPDF(client.id);
+  }
+
+  openModal('viewClientOverlay');
+}
+
+// 3. Mark Policy as Renewed Directly
+function markAsRenewed(clientId) {
+  const client = DATA.find(c => c.id === clientId);
+  if (!client) return;
+  
+  if (confirm(`Are you sure you want to mark ${client.name}'s policy as Renewed?`)) {
+    client.renewed = true;
+    saveAllToDB(() => {
+      logActivity(`🔄 Policy for ${client.name} marked as renewed`, 'success');
+      applyFiltersAndStats();
+    });
+  }
+}
+
+// 4. Export Client Policy Summary PDF
+function exportClientPDF(clientId) {
+  const client = DATA.find(c => c.id === clientId);
+  if (!client) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  // Add Title
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("GIC Client Policy Summary", 14, 20);
+  
+  doc.setFontSize(10);
+  doc.setFont("Helvetica", "normal");
+  doc.text(`Generated on: ${new Date().toLocaleDateString('en-IN')}`, 14, 26);
+  doc.text(`Midas Money Care — Insurance & Wealth Solutions`, 14, 31);
+  doc.line(14, 34, 196, 34);
+
+  // Client Details Section
+  doc.setFontSize(14);
+  doc.setFont("Helvetica", "bold");
+  doc.text("1. Client Contact Info", 14, 43);
+
+  const clientInfo = [
+    ["Name", client.name || "—"],
+    ["Mobile", client.mobile || "—"],
+    ["Email", client.email || "—"],
+    ["Profession", client.profession || "—"],
+    ["Address", client.address || "—"]
+  ];
+
+  doc.autoTable({
+    startY: 46,
+    head: [["Field", "Details"]],
+    body: clientInfo,
+    theme: 'striped',
+    headStyles: { fillColor: [52, 58, 64] }
+  });
+
+  // Policy Details Section
+  const nextY1 = doc.previousAutoTable.finalY + 10;
+  doc.setFontSize(14);
+  doc.setFont("Helvetica", "bold");
+  doc.text("2. Policy Details", 14, nextY1);
+
+  const policyInfo = [
+    ["Insurance Provider", client.provider || "—"],
+    ["Plan Name", client.plan || "—"],
+    ["Policy Number", client.policy_no || "—"],
+    ["Premium Amount", formatCurrency(client.premium_amount)],
+    ["Commission Amount", formatCurrency(client.commission_amount)],
+    ["Start Date", formatDate(client.start_date)],
+    ["End Date", formatDate(client.end_date)],
+    ["Collection Date", client.collection_date ? formatDate(client.collection_date) : "—"]
+  ];
+
+  doc.autoTable({
+    startY: nextY1 + 3,
+    head: [["Policy Parameter", "Value"]],
+    body: policyInfo,
+    theme: 'grid',
+    headStyles: { fillColor: [52, 58, 64] }
+  });
+
+  // Family Members Section
+  const nextY2 = doc.previousAutoTable.finalY + 10;
+  doc.setFontSize(14);
+  doc.setFont("Helvetica", "bold");
+  doc.text("3. Family Members", 14, nextY2);
+
+  const familyBody = (client.family_members || []).map((m, idx) => {
+    const age = m.dob ? Math.floor((Date.now() - new Date(m.dob)) / (365.25 * 86400000)) : "—";
+    return [
+      idx + 1,
+      m.name || "—",
+      m.type === 'other' ? (m.other_label || 'Other') : getMemberTypeLabel(m.type),
+      m.gender || "—",
+      m.dob ? formatDate(m.dob) : "—",
+      age,
+      m.height || "—",
+      m.weight ? `${m.weight} kg` : "—"
+    ];
+  });
+
+  if (familyBody.length > 0) {
+    doc.autoTable({
+      startY: nextY2 + 3,
+      head: [["Sr", "Name", "Relationship", "Gender", "DOB", "Age", "Height", "Weight"]],
+      body: familyBody,
+      theme: 'striped',
+      headStyles: { fillColor: [52, 58, 64] }
+    });
+  } else {
+    doc.setFontSize(10);
+    doc.setFont("Helvetica", "italic");
+    doc.text("No family members registered.", 14, nextY2 + 7);
+    doc.previousAutoTable = { finalY: nextY2 + 10 }; // fake position
+  }
+
+  // Claims History Section
+  const clientClaims = CLAIMS.filter(claim => claim.client_id === clientId);
+  const nextY3 = doc.previousAutoTable.finalY + 10;
+  
+  let startY3 = nextY3;
+  if (startY3 > 240) {
+    doc.addPage();
+    startY3 = 20;
+  }
+  
+  doc.setFontSize(14);
+  doc.setFont("Helvetica", "bold");
+  doc.text("4. Claims History", 14, startY3);
+
+  const claimsBody = clientClaims.map((claim, idx) => [
+    idx + 1,
+    claim.claimant_name || "—",
+    formatCurrency(claim.amount),
+    claim.status.toUpperCase(),
+    formatDate(claim.date_applied),
+    claim.notes || "—"
+  ]);
+
+  if (claimsBody.length > 0) {
+    doc.autoTable({
+      startY: startY3 + 3,
+      head: [["Sr", "Claimant Name", "Amount", "Status", "Date Applied", "Notes"]],
+      body: claimsBody,
+      theme: 'striped',
+      headStyles: { fillColor: [52, 58, 64] }
+    });
+  } else {
+    doc.setFontSize(10);
+    doc.setFont("Helvetica", "italic");
+    doc.text("No claims history recorded.", 14, startY3 + 7);
+  }
+
+  const filename = `${client.name.replace(/\s+/g, '_')}_policy_summary.pdf`;
+  doc.save(filename);
+  logActivity(`📄 PDF generated and downloaded: ${filename}`, 'success');
+}
+
+// 5. Dark Mode Logic
+function initDarkMode() {
+  const isDark = localStorage.getItem('gic_dark_mode') === 'true';
+  const toggleBtn = document.getElementById('darkModeToggle');
+  
+  if (isDark) {
+    document.body.classList.add('dark-mode');
+    if (toggleBtn) toggleBtn.innerHTML = '<i class="fa-solid fa-sun"></i>';
+  } else {
+    document.body.classList.remove('dark-mode');
+    if (toggleBtn) toggleBtn.innerHTML = '<i class="fa-solid fa-moon"></i>';
+  }
+}
+
+function toggleDarkMode() {
+  const isDarkNow = document.body.classList.toggle('dark-mode');
+  localStorage.setItem('gic_dark_mode', isDarkNow);
+  
+  const toggleBtn = document.getElementById('darkModeToggle');
+  if (toggleBtn) {
+    toggleBtn.innerHTML = isDarkNow ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+  }
+  
+  logActivity(`🌙 Dark theme ${isDarkNow ? 'enabled' : 'disabled'}`, 'info');
+  
+  // Re-render charts
+  if (providerChartInst) renderProviderChart();
+  if (urgencyChartInst) renderUrgencyChart();
+  if (forecastChartInst) renderForecastChart();
+  if (claimRatioChartInst) renderClaimRatioChart();
+  if (revenueTrendChartInst) renderRevenueTrendChart();
+}
+
+// 7. Bulk Actions
+function toggleSelectAll(headerCb) {
+  const checkboxes = document.querySelectorAll('.row-cb');
+  checkboxes.forEach(cb => {
+    cb.checked = headerCb.checked;
+  });
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const checkboxes = document.querySelectorAll('.row-cb:checked');
+  const bulkBar = document.getElementById('bulkActionBar');
+  const bulkCount = document.getElementById('bulkCount');
+  
+  if (!bulkBar || !bulkCount) return;
+  
+  const count = checkboxes.length;
+  if (count > 0) {
+    bulkCount.textContent = `${count} client${count !== 1 ? 's' : ''} selected`;
+    bulkBar.style.display = 'flex';
+    bulkBar.classList.remove('hidden');
+  } else {
+    bulkBar.style.display = 'none';
+    bulkBar.classList.add('hidden');
+    const selectAllCb = document.getElementById('selectAllCb');
+    if (selectAllCb) selectAllCb.checked = false;
+  }
+}
+
+function deselectAll() {
+  const checkboxes = document.querySelectorAll('.row-cb');
+  checkboxes.forEach(cb => cb.checked = false);
+  const selectAllCb = document.getElementById('selectAllCb');
+  if (selectAllCb) selectAllCb.checked = false;
+  updateBulkBar();
+}
+
+function bulkSendWhatsApp() {
+  const checkedCbs = document.querySelectorAll('.row-cb:checked');
+  const ids = Array.from(checkedCbs).map(cb => cb.getAttribute('data-id'));
+  
+  if (ids.length === 0) return;
+  
+  if (confirm(`Do you want to send WhatsApp reminders for ${ids.length} selected clients? (They will open sequentially in new tabs)`)) {
+    ids.forEach((id, index) => {
+      setTimeout(() => {
+        sendWhatsApp(id);
+      }, index * 1200); // 1.2s delay to prevent popup blockers
+    });
+  }
+}
+
+function bulkDelete() {
+  const checkedCbs = document.querySelectorAll('.row-cb:checked');
+  const ids = Array.from(checkedCbs).map(cb => cb.getAttribute('data-id'));
+  
+  if (ids.length === 0) return;
+  
+  if (!confirm(`⚠️ DANGER ZONE\n\nAre you sure you want to delete ${ids.length} selected client record(s)?\nThis cannot be undone!`)) return;
+  
+  let index = 0;
+  const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY) || '{}');
+  const collectionName = cfg.collection || DEFAULT_COLLECTION;
+
+  function deleteNext() {
+    if (index >= ids.length) {
+      logActivity(`🗑️ Bulk deleted ${ids.length} client record(s)`, 'error');
+      deselectAll();
+      applyFiltersAndStats();
+      showToast(`Bulk deleted ${ids.length} records`, 'info');
+      return;
+    }
+    
+    const id = ids[index];
+    DATA = DATA.filter(c => c.id !== id);
+    expandedRows.delete(id);
+    
+    deleteFromDB(id, () => {
+      if (cloudSyncActive && firestoreDb) {
+        firestoreDb.collection(collectionName).doc(id).delete().catch(() => {});
+      }
+      index++;
+      deleteNext();
+    });
+  }
+  
+  deleteNext();
+}
+
+// 8. Claim Settlement Ratio Doughnut Chart
+function renderClaimRatioChart() {
+  const ctx = document.getElementById('claimRatioChart');
+  if (!ctx) return;
+  
+  if (claimRatioChartInst) claimRatioChartInst.destroy();
+  
+  const counts = { pending: 0, approved: 0, settled: 0, query: 0, rejected: 0 };
+  CLAIMS.forEach(claim => {
+    const status = (claim.status || '').toLowerCase();
+    if (counts.hasOwnProperty(status)) {
+      counts[status]++;
+    } else {
+      counts.pending++;
+    }
+  });
+  
+  const isDark = document.body.classList.contains('dark-mode');
+  const textColor = isDark ? '#cbd5e1' : '#334155';
+  
+  claimRatioChartInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Pending', 'Approved', 'Settled', 'Query', 'Rejected'],
+      datasets: [{
+        data: [counts.pending, counts.approved, counts.settled, counts.query, counts.rejected],
+        backgroundColor: [
+          '#f59e0b', // Pending (warning/yellow)
+          '#38bdf8', // Approved (sky/blue)
+          '#10b981', // Settled (emerald/green)
+          '#8b5cf6', // Query (purple)
+          '#ef4444'  // Rejected (danger/red)
+        ],
+        borderWidth: isDark ? 2 : 1,
+        borderColor: isDark ? '#1e293b' : '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            color: textColor,
+            font: { family: 'Plus Jakarta Sans', size: 11 }
+          }
+        }
+      }
+    }
+  });
+}
+
+// 9. Monthly Revenue Trend Chart (Premium collected over past 12 months)
+function renderRevenueTrendChart() {
+  const ctx = document.getElementById('revenueTrendChart');
+  if (!ctx) return;
+  
+  if (revenueTrendChartInst) revenueTrendChartInst.destroy();
+  
+  const labels = [];
+  const monthlyData = [];
+  
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(currentYear, currentMonth - i, 1);
+    labels.push(d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }));
+    
+    let sum = 0;
+    DATA.forEach(c => {
+      if (!c.start_date) return;
+      const start = new Date(c.start_date);
+      if (start.getFullYear() === d.getFullYear() && start.getMonth() === d.getMonth()) {
+        sum += Number(c.premium_amount) || 0;
+      }
+    });
+    monthlyData.push(sum);
+  }
+  
+  const isDark = document.body.classList.contains('dark-mode');
+  const textColor = isDark ? '#cbd5e1' : '#334155';
+  const gridColor = isDark ? '#334155' : '#e2e8f0';
+  
+  const chartCtx = ctx.getContext('2d');
+  const gradient = chartCtx.createLinearGradient(0, 0, 0, 300);
+  gradient.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
+  gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+  
+  revenueTrendChartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Premium Collected (₹)',
+        data: monthlyData,
+        borderColor: '#10b981',
+        backgroundColor: gradient,
+        fill: true,
+        tension: 0.3,
+        borderWidth: 2,
+        pointBackgroundColor: '#10b981'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: textColor }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: gridColor },
+          ticks: { color: textColor }
+        },
+        y: {
+          grid: { color: gridColor },
+          ticks: {
+            color: textColor,
+            callback: function(value) {
+              return '₹' + value.toLocaleString('en-IN');
+            }
+          }
+        }
+      }
+    }
+  });
 }
