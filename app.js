@@ -16,39 +16,6 @@ const WA_TEMPLATE_KEY = 'gic_wa_template';
 const FIREBASE_CONFIG_KEY = 'gic_firebase_config';
 const DEFAULT_COLLECTION = 'gic_policies';
 
-// Safe localStorage wrapper to prevent crashes in sandboxed/file protocol environments
-const memoryStore = {};
-const safeStorage = {
-  getItem(key) {
-    try {
-      return localStorage.getItem(key);
-    } catch (e) {
-      console.warn("Storage access denied for getItem:", key, e);
-      return memoryStore[key] || null;
-    }
-  },
-  setItem(key, value) {
-    try {
-      localStorage.setItem(key, value);
-      return true;
-    } catch (e) {
-      console.warn("Storage access denied for setItem:", key, e);
-      memoryStore[key] = String(value);
-      return false;
-    }
-  },
-  removeItem(key) {
-    try {
-      localStorage.removeItem(key);
-      return true;
-    } catch (e) {
-      console.warn("Storage access denied for removeItem:", key, e);
-      delete memoryStore[key];
-      return false;
-    }
-  }
-};
-
 let DATA = [];           // All client records
 let filteredData = [];   // Currently displayed records
 let CLAIMS = [];         // All claim records
@@ -445,7 +412,7 @@ function connectCloud() {
   }
 
   const config = { projectId, apiKey, authDomain, storageBucket, collection };
-  safeStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(config));
+  localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(config));
 
   document.getElementById('cloudConnectStatus').textContent = 'Connecting to Firebase...';
   updateSyncUI('connecting');
@@ -516,7 +483,7 @@ function disconnectCloud() {
   if (firestoreClaimsUnsubscribe) { firestoreClaimsUnsubscribe(); firestoreClaimsUnsubscribe = null; }
   cloudSyncActive = false;
   firebaseApp = null; firestoreDb = null;
-  safeStorage.removeItem(FIREBASE_CONFIG_KEY);
+  localStorage.removeItem(FIREBASE_CONFIG_KEY);
   updateSyncUI('disconnected');
   document.getElementById('disconnectBtn').style.display = 'none';
   document.getElementById('cloudConnectStatus').textContent = '';
@@ -551,7 +518,7 @@ function updateSyncUI(state) {
 }
 
 const HARDCODED_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAPxNVrkK3_KCpygpsuzsFSPPJXtJ38kkc",
+  apiKey: "AlzaSyAPxNVrkK3_KCpygpsuzsFSPPJXtJ38kkc",
   authDomain: "gic-register-ab710.firebaseapp.com",
   projectId: "gic-register-ab710",
   storageBucket: "gic-register-ab710.firebasestorage.app",
@@ -560,11 +527,11 @@ const HARDCODED_FIREBASE_CONFIG = {
 
 function autoConnectFirebase() {
   let cfg = null;
-  const saved = safeStorage.getItem(FIREBASE_CONFIG_KEY);
+  const saved = localStorage.getItem(FIREBASE_CONFIG_KEY);
   if (saved) {
     try { cfg = JSON.parse(saved); } catch(e) {}
   }
-  if (!cfg || !cfg.projectId || !cfg.apiKey) {
+  if (!cfg) {
     cfg = HARDCODED_FIREBASE_CONFIG;
   }
   if (!cfg || !cfg.projectId || !cfg.apiKey) return;
@@ -790,11 +757,14 @@ function getMemberTypeLabel(type) {
 function startClock() {
   const clockEl = document.getElementById('liveClock');
   const dateEl = document.getElementById('liveDate');
-  if (!clockEl || !dateEl) return;
   function tick() {
     const now = new Date();
-    clockEl.textContent = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-    dateEl.innerHTML = `<i class="fa-regular fa-calendar-days" style="opacity:0.75; font-size:11px; color:var(--purple); margin-right:4px;"></i> ` + now.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    if (clockEl) {
+      clockEl.textContent = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    }
+    if (dateEl) {
+      dateEl.innerHTML = `<i class="fa-regular fa-calendar-days" style="opacity:0.75; font-size:11px; color:var(--purple); margin-right:4px;"></i> ` + now.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    }
   }
   tick();
   setInterval(tick, 1000);
@@ -1382,7 +1352,7 @@ function submitAddClient() {
   };
 
   if (cloudSyncActive && firestoreDb) {
-    const cfg = JSON.parse(safeStorage.getItem(FIREBASE_CONFIG_KEY) || '{}');
+    const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY) || '{}');
     const docRef = firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).doc(newClient.id);
     docRef.set(newClient).then(() => {
       showToast(`${name} saved to cloud!`, 'success');
@@ -1522,7 +1492,7 @@ function submitEditClient() {
   DATA[clientIdx] = updated;
   updateInDB(updated);
   if (cloudSyncActive && firestoreDb) {
-    const cfg = JSON.parse(safeStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
+    const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
     firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).doc(updated.id).set(updated).catch(() => {});
   }
   applyFiltersAndStats();
@@ -1542,7 +1512,7 @@ function deleteClient(clientId, clientName) {
   expandedRows.delete(clientId);
   deleteFromDB(clientId);
   if (cloudSyncActive && firestoreDb) {
-    const cfg = JSON.parse(safeStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
+    const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
     firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).doc(clientId).delete().catch(() => {});
   }
   applyFiltersAndStats();
@@ -1561,7 +1531,7 @@ function wipeAllData() {
   saveAllToDB();
   saveClaimsToDB();
   if (cloudSyncActive && firestoreDb) {
-    const cfg = JSON.parse(safeStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
+    const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
     firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).get().then(snap => {
       snap.forEach(doc => doc.ref.delete());
     }).catch(() => {});
@@ -1775,7 +1745,7 @@ function toggleOtherProvider(prefix) {
 function sendWhatsApp(clientId) {
   const client = DATA.find(c => c.id === clientId);
   if (!client) return;
-  const template = safeStorage.getItem(WA_TEMPLATE_KEY) || DEFAULT_WA_TEMPLATE;
+  const template = localStorage.getItem(WA_TEMPLATE_KEY) || DEFAULT_WA_TEMPLATE;
   const days = daysLeft(client.end_date);
   const msg = template
     .replace(/{name}/g, client.name)
@@ -1805,7 +1775,7 @@ function sendWhatsApp(clientId) {
 }
 
 function openWaTemplateModal() {
-  const template = safeStorage.getItem(WA_TEMPLATE_KEY) || DEFAULT_WA_TEMPLATE;
+  const template = localStorage.getItem(WA_TEMPLATE_KEY) || DEFAULT_WA_TEMPLATE;
   document.getElementById('waTemplateText').value = template;
   updateWaPreview();
   openModal('waTemplateOverlay');
@@ -1813,7 +1783,7 @@ function openWaTemplateModal() {
 
 function saveWaTemplate() {
   const text = document.getElementById('waTemplateText').value;
-  safeStorage.setItem(WA_TEMPLATE_KEY, text);
+  localStorage.setItem(WA_TEMPLATE_KEY, text);
   closeModal('waTemplateOverlay');
   showToast('WhatsApp template saved!', 'success');
   logActivity('💬 WhatsApp template updated', 'info');
@@ -2251,10 +2221,10 @@ function renderForecastChart() {
 // INITIALIZATION
 // ══════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', function() {
-  try { initDarkMode(); } catch(e) { console.error("Error in initDarkMode:", e); }
-  try { startClock(); } catch(e) { console.error("Error in startClock:", e); }
-  try { initDatabase(); } catch(e) { console.error("Error in initDatabase:", e); }
-  try { autoConnectFirebase(); } catch(e) { console.error("Error in autoConnectFirebase:", e); }
+  initDarkMode();
+  startClock();
+  initDatabase();
+  autoConnectFirebase();
 
   // Auto-copy main client name to first member (Self)
   document.getElementById('ac_name')?.addEventListener('input', function() {
@@ -2267,8 +2237,8 @@ window.addEventListener('DOMContentLoaded', function() {
   });
 
   // Load WhatsApp template
-  if (!safeStorage.getItem(WA_TEMPLATE_KEY)) {
-    safeStorage.setItem(WA_TEMPLATE_KEY, DEFAULT_WA_TEMPLATE);
+  if (!localStorage.getItem(WA_TEMPLATE_KEY)) {
+    localStorage.setItem(WA_TEMPLATE_KEY, DEFAULT_WA_TEMPLATE);
   }
 
   // Initial family card
@@ -3550,7 +3520,7 @@ function exportClientPDF(clientId) {
 
 // 5. Dark Mode Logic
 function initDarkMode() {
-  const isDark = safeStorage.getItem('gic_dark_mode') === 'true';
+  const isDark = localStorage.getItem('gic_dark_mode') === 'true';
   const toggleBtn = document.getElementById('darkModeToggle');
   
   if (isDark) {
@@ -3564,7 +3534,7 @@ function initDarkMode() {
 
 function toggleDarkMode() {
   const isDarkNow = document.body.classList.toggle('dark-mode');
-  safeStorage.setItem('gic_dark_mode', isDarkNow);
+  localStorage.setItem('gic_dark_mode', isDarkNow);
   
   const toggleBtn = document.getElementById('darkModeToggle');
   if (toggleBtn) {
@@ -3642,7 +3612,7 @@ function bulkDelete() {
   if (!confirm(`⚠️ DANGER ZONE\n\nAre you sure you want to delete ${ids.length} selected client record(s)?\nThis cannot be undone!`)) return;
   
   let index = 0;
-  const cfg = JSON.parse(safeStorage.getItem(FIREBASE_CONFIG_KEY) || '{}');
+  const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY) || '{}');
   const collectionName = cfg.collection || DEFAULT_COLLECTION;
 
   function deleteNext() {
