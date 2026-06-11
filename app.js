@@ -38,7 +38,7 @@ let providerChartInst = null;
 let urgencyChartInst = null;
 let forecastChartInst = null;
 let claimRatioChartInst = null;
-let revenueTrendChartInst = null;
+let commissionChartInst = null;
 
 // ══════════════════════════════════════════════════════════════
 // SAMPLE DATA — 10 REALISTIC TEST CLIENTS
@@ -1033,16 +1033,6 @@ function applyFiltersAndStats() {
   document.getElementById('statExpiredToday').textContent = expiredToday;
   document.getElementById('statExpiredSub').textContent = `${expired} total expired`;
 
-  const renewedCount = enriched.filter(c => c._isRenewed).length;
-  const expiredCount = enriched.filter(c => c._days < 0 && !c._isRenewed).length;
-  const totalApplicable = renewedCount + expiredCount;
-  const renewalRate = totalApplicable > 0 ? Math.round((renewedCount / totalApplicable) * 100) : 100;
-  
-  const statRenewalRate = document.getElementById('statRenewalRate');
-  if (statRenewalRate) statRenewalRate.textContent = `${renewalRate}%`;
-  const statRenewalSub = document.getElementById('statRenewalSub');
-  if (statRenewalSub) statRenewalSub.textContent = `${renewedCount} of ${totalApplicable} renewed`;
-
   // Update notification bell dropdown
   updateNotifBell();
 
@@ -1186,6 +1176,9 @@ function renderTable() {
         <div class="action-btns">
           <button class="action-btn wa ${client.wa_sent ? 'sent' : ''}" title="Send WhatsApp Reminder" onclick="sendWhatsApp('${client.id}')">
             <i class="fa-brands fa-whatsapp"></i>
+          </button>
+          <button class="action-btn profile" title="View Client Profile" onclick="openClientProfile('${client.id}'); event.stopPropagation();" style="color:var(--sky)">
+            <i class="fa-solid fa-circle-user"></i>
           </button>
           <button class="action-btn renew" title="Renew Policy" onclick="openRenewModal('${client.id}')">
             <i class="fa-solid fa-arrows-rotate"></i>
@@ -1939,7 +1932,7 @@ function renderAnalytics() {
   renderUrgencyChart();
   renderForecastChart();
   renderClaimRatioChart();
-  renderRevenueTrendChart();
+  renderCommissionChart();
   renderWorkHeatmap();
 }
 
@@ -2564,7 +2557,7 @@ function renderClaimsTableRows() {
     // Format claim details cell with Claim No, Intimation No, Disease
     const claimDetailsHtml = `
       <div class="cell-name">
-        <strong>${escapeHtml(claim.client_name)}</strong><br>
+        <strong class="clickable-name" onclick="openClientProfile('${claim.client_id}')">${escapeHtml(claim.client_name)}</strong><br>
         <small style="color:var(--iron-grey); font-weight:500">Claimant: ${escapeHtml(claim.claimant_name)}</small>
         ${claim.disease_name ? `<br><small style="color:var(--purple); font-weight:600"><i class="fa-solid fa-virus-covid"></i> Disease: ${escapeHtml(claim.disease_name)}</small>` : ''}
         ${(claim.claim_no || claim.intimation_no) ? `<br><small style="font-family:'JetBrains Mono'; color:var(--slate-grey); font-size:10px; line-height:1.2">` : ''}
@@ -2766,6 +2759,9 @@ function selectClaimClient(clientId, clientName, provider, plan) {
   document.getElementById('claim_searchGroup').classList.add('hidden');
   document.getElementById('claim_selectedClientGroup').classList.remove('hidden');
 
+  const viewProfileBtn = document.getElementById('claim_viewProfileBtn');
+  if (viewProfileBtn) viewProfileBtn.style.display = 'inline-block';
+
   // Clear search results
   const resultsDiv = document.getElementById('claim_clientSearchResults');
   if (resultsDiv) {
@@ -2805,6 +2801,9 @@ function clearSelectedClaimClient() {
   document.getElementById('claim_clientSearch').value = '';
   document.getElementById('claim_searchGroup').classList.remove('hidden');
   document.getElementById('claim_selectedClientGroup').classList.add('hidden');
+
+  const viewProfileBtn = document.getElementById('claim_viewProfileBtn');
+  if (viewProfileBtn) viewProfileBtn.style.display = 'none';
 
   const claimantSelect = document.getElementById('claim_claimant');
   claimantSelect.innerHTML = '<option value="">Select member</option>';
@@ -3545,7 +3544,7 @@ function toggleDarkMode() {
   if (urgencyChartInst) renderUrgencyChart();
   if (forecastChartInst) renderForecastChart();
   if (claimRatioChartInst) renderClaimRatioChart();
-  if (revenueTrendChartInst) renderRevenueTrendChart();
+  if (commissionChartInst) renderCommissionChart();
 }
 
 // 7. Bulk Actions
@@ -3690,12 +3689,12 @@ function renderClaimRatioChart() {
   });
 }
 
-// 9. Monthly Revenue Trend Chart (Premium collected over past 12 months)
-function renderRevenueTrendChart() {
-  const ctx = document.getElementById('revenueTrendChart');
+// 9. Commission Earned Trend Chart
+function renderCommissionChart() {
+  const ctx = document.getElementById('commissionChart');
   if (!ctx) return;
   
-  if (revenueTrendChartInst) revenueTrendChartInst.destroy();
+  if (commissionChartInst) commissionChartInst.destroy();
   
   const labels = [];
   const monthlyData = [];
@@ -3713,7 +3712,7 @@ function renderRevenueTrendChart() {
       if (!c.start_date) return;
       const start = new Date(c.start_date);
       if (start.getFullYear() === d.getFullYear() && start.getMonth() === d.getMonth()) {
-        sum += Number(c.premium_amount) || 0;
+        sum += Number(c.commission_amount) || 0;
       }
     });
     monthlyData.push(sum);
@@ -3728,12 +3727,12 @@ function renderRevenueTrendChart() {
   gradient.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
   gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
   
-  revenueTrendChartInst = new Chart(ctx, {
+  commissionChartInst = new Chart(ctx, {
     type: 'line',
     data: {
       labels: labels,
       datasets: [{
-        label: 'Premium Collected (₹)',
+        label: 'Commission Earned (₹)',
         data: monthlyData,
         borderColor: '#10b981',
         backgroundColor: gradient,

@@ -198,12 +198,6 @@
           <div class="stat-value" id="statCommission">₹0</div>
           <div class="stat-sub" id="statCommissionSub">from active policies</div>
         </div>
-        <div class="stat-badge" style="--badge-color:var(--sky);--badge-color-dim:var(--sky-dim)">
-          <div class="stat-icon"><i class="fa-solid fa-arrows-rotate"></i></div>
-          <div class="stat-label">Renewal Rate</div>
-          <div class="stat-value" id="statRenewalRate">0%</div>
-          <div class="stat-sub" id="statRenewalSub">0 of 0 renewed</div>
-        </div>
         <div class="stat-badge" style="--badge-color:var(--primary);--badge-color-dim:var(--sky-dim)">
           <div class="stat-icon"><i class="fa-solid fa-calendar-xmark"></i></div>
           <div class="stat-label">Expiring in 15 Days</div>
@@ -423,19 +417,17 @@
       <!-- ───── ANALYTICS VIEW ───── -->
       <div id="analyticsView" class="hidden">
 
-        <div class="analytics-grid">
-
-          <!-- Monthly Revenue Trend -->
+          <!-- Commission Earned Trend -->
           <div class="chart-card full-width">
             <div class="chart-card-header">
               <div>
-                <div class="chart-title">Monthly Revenue Trend</div>
-                <div class="chart-subtitle">Premium collected per month over past 12 months</div>
+                <div class="chart-title">Commission Earned Trend</div>
+                <div class="chart-subtitle">Monthly commission earned over past 12 months</div>
               </div>
-              <i class="fa-solid fa-chart-line" style="color:var(--text-light);font-size:20px"></i>
+              <i class="fa-solid fa-hand-holding-dollar" style="color:var(--emerald);font-size:20px"></i>
             </div>
             <div class="chart-container tall">
-              <canvas id="revenueTrendChart"></canvas>
+              <canvas id="commissionChart"></canvas>
             </div>
           </div>
 
@@ -1066,6 +1058,7 @@
                 <span id="claim_selectedClientDetail" class="text-xs text-muted">Provider | Plan</span>
               </div>
               <button type="button" class="btn btn-ghost btn-sm" onclick="clearSelectedClaimClient()">Change</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="claim_viewProfileBtn" style="display:none; color:var(--emerald); margin-left:8px;" onclick="openClientProfile(document.getElementById('claim_clientId').value)">View Profile</button>
             </div>
             <input type="hidden" id="claim_clientId">
           </div>
