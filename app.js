@@ -758,7 +758,7 @@ function startClock() {
   function tick() {
     const now = new Date();
     clockEl.textContent = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-    dateEl.textContent = now.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    dateEl.innerHTML = `<i class="fa-regular fa-calendar-days" style="opacity:0.75; font-size:11px; color:var(--purple); margin-right:4px;"></i> ` + now.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   }
   tick();
   setInterval(tick, 1000);
@@ -1896,6 +1896,72 @@ function renderAnalytics() {
   renderProviderChart();
   renderUrgencyChart();
   renderForecastChart();
+  renderWorkHeatmap();
+}
+
+function renderWorkHeatmap() {
+  const grid = document.getElementById('heatmapGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const countsByDate = {};
+  
+  // Count client entries
+  DATA.forEach(c => {
+    if (c.created_at) {
+      const d = new Date(c.created_at);
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      countsByDate[dateKey] = (countsByDate[dateKey] || 0) + 1;
+    }
+  });
+  
+  // Count claims entries
+  CLAIMS.forEach(c => {
+    if (c.created_at) {
+      const d = new Date(c.created_at);
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      countsByDate[dateKey] = (countsByDate[dateKey] || 0) + 1;
+    }
+  });
+
+  const today = new Date();
+  const startDate = new Date();
+  startDate.setDate(today.getDate() - 364); // 364 days ago
+  const dayOfWeek = startDate.getDay();
+  startDate.setDate(startDate.getDate() - dayOfWeek); // Align to Sunday
+
+  const days = [];
+  const curr = new Date(startDate);
+  const end = new Date(today);
+  end.setHours(23, 59, 59, 999);
+  
+  while (curr <= end) {
+    days.push(new Date(curr));
+    curr.setDate(curr.getDate() + 1);
+  }
+
+  days.forEach(date => {
+    const dateKey = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    const count = countsByDate[dateKey] || 0;
+    
+    let level = 0;
+    if (count === 1) level = 1;
+    else if (count >= 2 && count <= 3) level = 2;
+    else if (count >= 4 && count <= 5) level = 3;
+    else if (count >= 6) level = 4;
+
+    const cell = document.createElement('div');
+    cell.className = `heatmap-cell level-${level}`;
+    cell.style.width = '12px';
+    cell.style.height = '12px';
+    cell.style.borderRadius = '2px';
+    cell.style.cursor = 'pointer';
+    
+    const formattedDate = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    cell.title = `${count} entry${count !== 1 ? 'ies' : ''} on ${formattedDate}`;
+    
+    grid.appendChild(cell);
+  });
 }
 
 function renderProviderChart() {
