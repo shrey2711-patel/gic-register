@@ -2262,8 +2262,8 @@ function deleteClaimFromDB(id, callback) {
 // CLAIMS ACTIONS & RENDER
 // ══════════════════════════════════════════════════════════════
 function updateClaimsStats() {
-  let totalClaimAmt = 0, pendingClaimAmt = 0, settledClaimAmt = 0, rejectedClaimAmt = 0;
-  let totalCount = CLAIMS.length, pendingCount = 0, settledCount = 0, rejectedCount = 0;
+  let totalClaimAmt = 0, pendingClaimAmt = 0, settledClaimAmt = 0, rejectedClaimAmt = 0, queryClaimAmt = 0;
+  let totalCount = CLAIMS.length, pendingCount = 0, settledCount = 0, rejectedCount = 0, queryCount = 0;
 
   CLAIMS.forEach(c => {
     const amt = Number(c.amount) || 0;
@@ -2277,6 +2277,9 @@ function updateClaimsStats() {
     } else if (c.status === 'approved') {
       pendingClaimAmt += amt;
       pendingCount++;
+    } else if (c.status === 'query') {
+      queryClaimAmt += amt;
+      queryCount++;
     } else if (c.status === 'rejected') {
       rejectedClaimAmt += amt;
       rejectedCount++;
@@ -2289,6 +2292,8 @@ function updateClaimsStats() {
   const pendingSubEl = document.getElementById('claimStatPendingSub');
   const settledEl = document.getElementById('claimStatSettled');
   const settledSubEl = document.getElementById('claimStatSettledSub');
+  const queryEl = document.getElementById('claimStatQuery');
+  const querySubEl = document.getElementById('claimStatQuerySub');
   const rejectedEl = document.getElementById('claimStatRejected');
   const rejectedSubEl = document.getElementById('claimStatRejectedSub');
 
@@ -2298,6 +2303,8 @@ function updateClaimsStats() {
   if (pendingSubEl) pendingSubEl.textContent = `${pendingCount} pending / approved`;
   if (settledEl) settledEl.textContent = formatCurrency(settledClaimAmt);
   if (settledSubEl) settledSubEl.textContent = `${settledCount} settled`;
+  if (queryEl) queryEl.textContent = formatCurrency(queryClaimAmt);
+  if (querySubEl) querySubEl.textContent = `${queryCount} quer${queryCount !== 1 ? 'ies' : 'y'} pending`;
   if (rejectedEl) rejectedEl.textContent = formatCurrency(rejectedClaimAmt);
   if (rejectedSubEl) rejectedSubEl.textContent = `${rejectedCount} rejected`;
 }
@@ -2351,16 +2358,16 @@ function renderClaimsTableRows() {
     const statusClass = claim.status || 'pending';
     const tr = document.createElement('tr');
     
-    // Rejections timeline markup
+    // Query & Resubmission timeline markup
     let rejectionsTimelineHtml = '';
     if (claim.rejections && claim.rejections.length > 0) {
       rejectionsTimelineHtml = `
         <div class="rejections-timeline" style="margin-top:6px; padding-top:6px; border-top:1px dashed var(--platinum); display:flex; flex-direction:column; gap:4px;">
-          <div style="font-weight:700; font-size:10px; color:var(--danger); text-transform:uppercase; letter-spacing:0.5px;">Rejections History (${claim.rejections.length})</div>
+          <div style="font-weight:700; font-size:10px; color:var(--purple); text-transform:uppercase; letter-spacing:0.5px;">Query & Resubmission History (${claim.rejections.length})</div>
           ${claim.rejections.map((rej, rIdx) => `
-            <div style="font-size:11px; padding:6px; background:rgba(239,68,68,0.02); border:1px solid rgba(239,68,68,0.1); border-radius:4px; margin-bottom:2px; line-height:1.3">
-              <span style="font-weight:600; color:var(--danger)">Round ${rIdx+1} Rejected:</span> ${formatDate(rej.reject_date)}<br>
-              <span style="font-weight:600;">Query:</span> <span style="color:var(--iron-grey)">${escapeHtml(rej.query_reason)}</span><br>
+            <div style="font-size:11px; padding:6px; background:rgba(139,92,246,0.02); border:1px solid rgba(139,92,246,0.15); border-radius:4px; margin-bottom:2px; line-height:1.3">
+              <span style="font-weight:600; color:var(--purple)">Round ${rIdx+1} Query:</span> ${formatDate(rej.reject_date)}<br>
+              <span style="font-weight:600;">Details:</span> <span style="color:var(--iron-grey)">${escapeHtml(rej.query_reason)}</span><br>
               ${rej.resubmit_date 
                 ? `<span style="font-weight:600; color:var(--emerald)"><i class="fa-solid fa-arrow-rotate-right" style="font-size:9px"></i> Resubmitted:</span> ${formatDate(rej.resubmit_date)}`
                 : `<span style="color:var(--orange); font-weight:600;"><i class="fa-regular fa-clock" style="font-size:9px"></i> Pending Resubmission</span>`
@@ -2525,7 +2532,7 @@ function toggleClaimStatusFields() {
 
   const rejectionsSection = document.getElementById('claim_rejectionsSection');
   if (rejectionsSection) {
-    if (status === 'rejected' || currentClaimRejections.length > 0) {
+    if (status === 'query') {
       rejectionsSection.style.display = 'block';
     } else {
       rejectionsSection.style.display = 'none';
@@ -2668,7 +2675,7 @@ async function submitLogClaim() {
     }
   }
 
-  // Validate and clean rejections
+  // Validate and clean query rounds
   const rejections = [];
   for (let i = 0; i < currentClaimRejections.length; i++) {
     const rej = currentClaimRejections[i];
@@ -2677,16 +2684,16 @@ async function submitLogClaim() {
     const queryReason = (rej.query_reason || '').trim();
     
     if (!rejectDateRaw) {
-      showToast(`Please enter the Date Rejected for Rejection Round ${i + 1}`, 'error'); return;
+      showToast(`Please enter the Date Query Raised for Query Round ${i + 1}`, 'error'); return;
     }
     if (!isValidDateString(rejectDateRaw)) {
-      showToast(`Please enter a valid Date Rejected (DD-MM-YYYY) for Rejection Round ${i + 1}`, 'error'); return;
+      showToast(`Please enter a valid Date Query Raised (DD-MM-YYYY) for Query Round ${i + 1}`, 'error'); return;
     }
     if (resubmitDateRaw && !isValidDateString(resubmitDateRaw)) {
-      showToast(`Please enter a valid Date Resubmitted (DD-MM-YYYY) for Rejection Round ${i + 1}`, 'error'); return;
+      showToast(`Please enter a valid Date Resubmitted (DD-MM-YYYY) for Query Round ${i + 1}`, 'error'); return;
     }
     if (!queryReason) {
-      showToast(`Please enter the Rejection Reason/Query for Rejection Round ${i + 1}`, 'error'); return;
+      showToast(`Please enter the Query Details/Reason for Query Round ${i + 1}`, 'error'); return;
     }
     
     rejections.push({
@@ -2779,9 +2786,9 @@ function deleteClaim(claimId, claimantName) {
 function exportClaimsToExcel() {
   if (CLAIMS.length === 0) { showToast('No claims to export', 'error'); return; }
   const rows = CLAIMS.map((c, i) => {
-    // Format rejections history as a single string
+    // Format query history as a single string
     const rejectionsStr = (c.rejections || []).map((rej, rIdx) => 
-      `Round ${rIdx+1}: Rejected on ${formatDate(rej.reject_date)} (Query: ${rej.query_reason})${rej.resubmit_date ? `, Resubmitted on ${formatDate(rej.resubmit_date)}` : ' - Pending Resubmission'}`
+      `Round ${rIdx+1}: Query Raised on ${formatDate(rej.reject_date)} (Details: ${rej.query_reason})${rej.resubmit_date ? `, Resubmitted on ${formatDate(rej.resubmit_date)}` : ' - Pending Resubmission'}`
     ).join(' | ');
 
     return {
@@ -2800,7 +2807,7 @@ function exportClaimsToExcel() {
       'Company Response Date': formatDate(c.date_responded),
       'Approval Date': formatDate(c.date_approved),
       'Settlement Date': formatDate(c.date_settled),
-      'Rejection History': rejectionsStr || 'None',
+      'Query & Resubmission History': rejectionsStr || 'None',
       'Remarks': c.notes || '',
       'Created On': formatDate(c.created_at)
     };
@@ -2835,7 +2842,7 @@ function renderClaimRejectionsModalList() {
   listDiv.innerHTML = '';
   
   if (currentClaimRejections.length === 0) {
-    listDiv.innerHTML = '<div style="color:var(--text-light);font-size:12px;font-style:italic;text-align:center;padding:10px;border:1px dashed var(--platinum);border-radius:4px">No rejection rounds recorded yet.</div>';
+    listDiv.innerHTML = '<div style="color:var(--text-light);font-size:12px;font-style:italic;text-align:center;padding:10px;border:1px dashed var(--platinum);border-radius:4px">No query rounds recorded yet.</div>';
     return;
   }
   
@@ -2846,14 +2853,14 @@ function renderClaimRejectionsModalList() {
     
     card.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; padding-bottom:6px; margin-bottom:4px">
-        <span style="font-weight:600; font-size:12px; color:var(--danger)"><i class="fa-solid fa-circle-exclamation"></i> Rejection Round ${idx + 1}</span>
+        <span style="font-weight:600; font-size:12px; color:var(--purple)"><i class="fa-solid fa-circle-question"></i> Query Round ${idx + 1}</span>
         <button type="button" class="btn btn-ghost btn-sm" onclick="removeRejectionRound(${idx})" style="padding:2px 6px; color:var(--danger); height:auto">
           <i class="fa-regular fa-trash-can" style="font-size:11px"></i> Remove
         </button>
       </div>
       <div class="form-grid" style="gap:10px; margin-bottom:0">
         <div class="form-group" style="margin-bottom:0">
-          <label class="form-label" style="font-size:10px">Date Rejected</label>
+          <label class="form-label" style="font-size:10px">Date Query Raised</label>
           <input type="text" class="form-input date-mask" value="${escapeHtml(rej.reject_date || '')}" oninput="updateRejectionField(${idx}, 'reject_date', this.value)" placeholder="DD-MM-YYYY" maxlength="10" style="padding:5px 8px; font-size:11.5px; height:30px">
         </div>
         <div class="form-group" style="margin-bottom:0">
@@ -2862,8 +2869,8 @@ function renderClaimRejectionsModalList() {
         </div>
       </div>
       <div class="form-group" style="margin-top:4px; margin-bottom:0">
-        <label class="form-label" style="font-size:10px">Rejection Reason / Query Text</label>
-        <textarea class="form-textarea" oninput="updateRejectionField(${idx}, 'query_reason', this.value)" placeholder="Enter rejection reason or query details..." rows="2" style="font-size:11.5px; padding:6px 10px; min-height:45px">${escapeHtml(rej.query_reason || '')}</textarea>
+        <label class="form-label" style="font-size:10px">Query Details / Missing Documents</label>
+        <textarea class="form-textarea" oninput="updateRejectionField(${idx}, 'query_reason', this.value)" placeholder="Enter query details or list missing documents..." rows="2" style="font-size:11.5px; padding:6px 10px; min-height:45px">${escapeHtml(rej.query_reason || '')}</textarea>
       </div>
     `;
     listDiv.appendChild(card);
@@ -2877,7 +2884,7 @@ function updateRejectionField(idx, field, val) {
 }
 
 function removeRejectionRound(idx) {
-  if (confirm(`Remove Rejection Round ${idx + 1}?`)) {
+  if (confirm(`Remove Query Round ${idx + 1}?`)) {
     currentClaimRejections.splice(idx, 1);
     renderClaimRejectionsModalList();
     toggleClaimStatusFields();
@@ -2890,16 +2897,16 @@ function addRejectionRoundRow() {
   const queryReason = document.getElementById('new_reject_reason').value.trim();
   
   if (!rejectDateRaw) {
-    showToast('Please enter the Date Rejected', 'error'); return;
+    showToast('Please enter the Date Query Raised', 'error'); return;
   }
   if (!isValidDateString(rejectDateRaw)) {
-    showToast('Please enter a valid Date Rejected (DD-MM-YYYY)', 'error'); return;
+    showToast('Please enter a valid Date Query Raised (DD-MM-YYYY)', 'error'); return;
   }
   if (resubmitDateRaw && !isValidDateString(resubmitDateRaw)) {
     showToast('Please enter a valid Date Resubmitted (DD-MM-YYYY)', 'error'); return;
   }
   if (!queryReason) {
-    showToast('Please enter the Rejection Reason / Query details', 'error'); return;
+    showToast('Please enter the Query details', 'error'); return;
   }
   
   currentClaimRejections.push({
@@ -2915,5 +2922,5 @@ function addRejectionRoundRow() {
   
   renderClaimRejectionsModalList();
   toggleClaimStatusFields();
-  showToast('Rejection round added!', 'success');
+  showToast('Query round added!', 'success');
 }

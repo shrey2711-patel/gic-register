@@ -332,9 +332,14 @@ body {
 @media (max-width: 768px) { .stats-strip { grid-template-columns: repeat(2, 1fr); } }
 
 .claims-stats-strip {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
 }
-@media (max-width: 1200px) {
+@media (max-width: 1400px) {
+  .claims-stats-strip {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 992px) {
   .claims-stats-strip {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -926,11 +931,58 @@ td:first-child { padding-left: 20px; }
   .status-tabs { gap: 4px; }
   .status-tab { padding: 5px 10px; font-size: 11px; }
 }
+@media (max-width: 576px) {
+  .controls-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .controls-row > * {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .search-wrap {
+    min-width: 100%;
+  }
+  .filter-select {
+    width: 100%;
+  }
+  .record-count {
+    margin-left: 0 !important;
+    text-align: left;
+    margin-top: 4px;
+  }
+  .modal-footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .urgency-breakdown {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 480px) {
-  .stats-strip { grid-template-columns: 1fr 1fr; }
+  .stats-strip { grid-template-columns: 1fr; }
   .stat-value { font-size: 18px; }
   .view-tabs { width: 100%; }
-  .view-tab { flex: 1; justify-content: center; }
+  .view-tab { flex: 1; justify-content: center; padding: 8px 10px; font-size: 12px; }
+  .modal-header {
+    padding: 14px 16px;
+  }
+  .modal-title {
+    font-size: 15px;
+  }
+  .modal-body {
+    padding: 16px;
+    gap: 16px;
+  }
+  .modal-footer {
+    padding: 12px 16px;
+  }
 }
 
 /* ── ANIMATIONS ── */
@@ -1025,4 +1077,5 @@ tbody tr { animation: fadeIn 0.25s ease both; }
 .claim-status-badge.pending { background: var(--warning-dim); color: #b45309; border-color: rgba(245,158,11,0.3); }
 .claim-status-badge.approved { background: var(--primary-dim); color: var(--primary); border-color: var(--primary-glow); }
 .claim-status-badge.settled { background: var(--emerald-dim); color: var(--emerald); border-color: rgba(16,185,129,0.3); }
+.claim-status-badge.query { background: var(--purple-dim); color: var(--purple); border-color: rgba(139,92,246,0.3); }
 .claim-status-badge.rejected { background: var(--danger-dim); color: var(--danger); border-color: rgba(239,68,68,0.3); }
