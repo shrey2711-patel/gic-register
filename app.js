@@ -579,6 +579,27 @@ function formatDate(str) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function formatCreationTimestamp(isoString) {
+  if (!isoString) return '—';
+  const dateObj = new Date(isoString);
+  if (isNaN(dateObj.getTime())) return '—';
+  
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const year = dateObj.getFullYear();
+  const dateStr = `${day}-${month}-${year}`;
+  
+  const hours = String(dateObj.getHours()).padStart(2, '0');
+  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+  const seconds = String(dateObj.getSeconds()).padStart(2, '0');
+  const timeStr = `${hours}:${minutes}:${seconds}`;
+  
+  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const weekdayStr = weekdays[dateObj.getDay()];
+  
+  return `${dateStr} (${weekdayStr}) at ${timeStr}`;
+}
+
 function ddmmyyyyToYyyymmdd(str) {
   if (!str) return '';
   const parts = str.split('-');
@@ -1094,6 +1115,7 @@ function renderTable() {
           <strong>${escapeHtml(client.name)}</strong><br>
           <small><i class="fa-solid fa-phone" style="font-size:9px;color:var(--text-light)"></i> ${cleanMobile(client.mobile) || '—'}</small>
           ${client.profession ? `<br><small style="color:var(--text-light);font-size:10px">${escapeHtml(client.profession)}</small>` : ''}
+          <br><small style="color:var(--slate-grey);font-size:9px;font-style:italic;" title="Created Timestamp"><i class="fa-regular fa-clock" style="font-size:8px"></i> Created: ${formatCreationTimestamp(client.created_at)}</small>
         </div>
       </td>
       <td>
@@ -2397,6 +2419,7 @@ function renderClaimsTableRows() {
         ${(claim.claim_no && claim.intimation_no) ? ` | ` : ''}
         ${claim.intimation_no ? `Intimation No: ${escapeHtml(claim.intimation_no)}` : ''}
         ${(claim.claim_no || claim.intimation_no) ? `</small>` : ''}
+        <br><small style="color:var(--slate-grey);font-size:9px;font-style:italic;" title="Created Timestamp"><i class="fa-regular fa-clock" style="font-size:8px"></i> Created: ${formatCreationTimestamp(claim.created_at)}</small>
       </div>
     `;
 
