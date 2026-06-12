@@ -1656,3 +1656,35 @@ body.dark-mode .sidebar { background: #0f172a; border-right: 1px solid var(--car
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Hide Commission styles */
+.hide-commission-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  margin-left: auto;
+  white-space: nowrap;
+  transition: var(--t);
+}
+.hide-commission-label:hover {
+  color: var(--text);
+}
+.hide-commission-label .cb-custom {
+  margin: 0;
+}
+.hide-commission th:nth-child(7),
+.hide-commission td:nth-child(7) {
+  display: none !important;
+}
+
+@media (max-width: 576px) {
+  .hide-commission-label {
+    margin-left: 0 !important;
+    margin-top: 4px;
+    width: 100% !important;
+  }
+}

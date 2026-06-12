@@ -192,7 +192,7 @@
           <div class="stat-value" id="statTotalPremium">₹0</div>
           <div class="stat-sub" id="statPremiumSub">0 active policies</div>
         </div>
-        <div class="stat-badge" style="--badge-color:var(--emerald);--badge-color-dim:var(--emerald-dim)">
+        <div class="stat-badge" id="statCommissionCard" style="--badge-color:var(--emerald);--badge-color-dim:var(--emerald-dim)">
           <div class="stat-icon"><i class="fa-solid fa-hand-holding-dollar"></i></div>
           <div class="stat-label">Total Commission Earned</div>
           <div class="stat-value" id="statCommission">₹0</div>
@@ -270,6 +270,10 @@
               <option value="premium_low">Lowest Premium</option>
               <option value="commission_high">Highest Commission</option>
             </select>
+            <label class="hide-commission-label">
+              <input type="checkbox" id="hideCommissionCb" class="cb-custom" onchange="toggleHideCommission(this.checked)">
+              <span>Hide Commission</span>
+            </label>
             <span class="record-count" id="recordCount">0 records</span>
           </div>
           <div class="status-tabs">

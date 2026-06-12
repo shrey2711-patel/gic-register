@@ -1833,32 +1833,40 @@ function openCloudSyncModal() {
 // ══════════════════════════════════════════════════════════════
 function exportToExcel() {
   if (DATA.length === 0) { showToast('No records to export', 'error'); return; }
-  const rows = DATA.map((c, i) => ({
-    'Sr No': i + 1,
-    'Client Name': c.name,
-    'Mobile': c.mobile,
-    'Email': c.email || '',
-    'Address': c.address || '',
-    'Profession': c.profession || '',
-    'Insurance Provider': c.provider,
-    'Plan Name': c.plan,
-    'Sum Insured (₹)': c.plan_amount || 0,
-    'Policy Number': c.policy_no || '',
-    'Premium Mode': getPremiumModeLabel(c.premium_mode),
-    'Premium Amount (₹)': c.premium_amount || 0,
-    'Commission (₹)': c.commission_amount || 0,
-    'Commission %': c.commission_type === 'percentage' ? c.commission_value + '%' : 'N/A',
-    'Start Date': formatDate(c.start_date),
-    'End Date': formatDate(c.end_date),
-    'Policy Term': c.policy_term || '',
-    'Days Left': daysLeft(c.end_date),
-    'Status': daysLeft(c.end_date) < 0 ? 'EXPIRED' : daysLeft(c.end_date) === 0 ? 'TODAY' : daysLeft(c.end_date) <= 3 ? 'CRITICAL' : daysLeft(c.end_date) <= 7 ? 'URGENT' : daysLeft(c.end_date) <= 15 ? 'WARNING' : 'ACTIVE',
-    'Family Count': c.family_count || 1,
-    'Family Members': (c.family_members || []).map(m => `${getMemberTypeLabel(m.type)}: ${m.name}`).join(' | '),
-    'Health Notes': c.fitness_details || '',
-    'WA Sent': c.wa_sent ? 'Yes' : 'No',
-    'Created On': formatDate(c.created_at)
-  }));
+  const hideCommission = localStorage.getItem('gic_hide_commission') === 'true';
+  const rows = DATA.map((c, i) => {
+    const row = {
+      'Sr No': i + 1,
+      'Client Name': c.name,
+      'Mobile': c.mobile,
+      'Email': c.email || '',
+      'Address': c.address || '',
+      'Profession': c.profession || '',
+      'Insurance Provider': c.provider,
+      'Plan Name': c.plan,
+      'Sum Insured (₹)': c.plan_amount || 0,
+      'Policy Number': c.policy_no || '',
+      'Premium Mode': getPremiumModeLabel(c.premium_mode),
+      'Premium Amount (₹)': c.premium_amount || 0,
+    };
+    if (!hideCommission) {
+      row['Commission (₹)'] = c.commission_amount || 0;
+      row['Commission %'] = c.commission_type === 'percentage' ? c.commission_value + '%' : 'N/A';
+    }
+    Object.assign(row, {
+      'Start Date': formatDate(c.start_date),
+      'End Date': formatDate(c.end_date),
+      'Policy Term': c.policy_term || '',
+      'Days Left': daysLeft(c.end_date),
+      'Status': daysLeft(c.end_date) < 0 ? 'EXPIRED' : daysLeft(c.end_date) === 0 ? 'TODAY' : daysLeft(c.end_date) <= 3 ? 'CRITICAL' : daysLeft(c.end_date) <= 7 ? 'URGENT' : daysLeft(c.end_date) <= 15 ? 'WARNING' : 'ACTIVE',
+      'Family Count': c.family_count || 1,
+      'Family Members': (c.family_members || []).map(m => `${getMemberTypeLabel(m.type)}: ${m.name}`).join(' | '),
+      'Health Notes': c.fitness_details || '',
+      'WA Sent': c.wa_sent ? 'Yes' : 'No',
+      'Created On': formatDate(c.created_at)
+    });
+    return row;
+  });
 
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
@@ -2222,6 +2230,7 @@ function renderForecastChart() {
 // ══════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', function() {
   initDarkMode();
+  initHideCommission();
   startClock();
   initDatabase();
   autoConnectFirebase();
@@ -3254,7 +3263,6 @@ function openClientProfile(clientId) {
           <div><strong>Plan Name:</strong> <span>${escapeHtml(client.plan || '—')}</span></div>
           <div><strong>Policy No:</strong> <span>${escapeHtml(client.policy_no || '—')}</span></div>
           <div><strong>Premium Amount:</strong> <span class="premium-highlight">${formatCurrency(client.premium_amount)}</span></div>
-          <div><strong>Commission:</strong> <span>${formatCurrency(client.commission_amount)}</span></div>
           <div><strong>Start Date:</strong> <span>${formatDate(client.start_date)}</span></div>
           <div><strong>End Date:</strong> <span>${formatDate(client.end_date)}</span></div>
           <div><strong>Collection Date:</strong> <span>${client.collection_date ? formatDate(client.collection_date) : '—'}</span></div>
@@ -3427,7 +3435,6 @@ function exportClientPDF(clientId) {
     ["Plan Name", client.plan || "—"],
     ["Policy Number", client.policy_no || "—"],
     ["Premium Amount", formatCurrency(client.premium_amount)],
-    ["Commission Amount", formatCurrency(client.commission_amount)],
     ["Start Date", formatDate(client.start_date)],
     ["End Date", formatDate(client.end_date)],
     ["Collection Date", client.collection_date ? formatDate(client.collection_date) : "—"]
@@ -3549,6 +3556,36 @@ function toggleDarkMode() {
   if (forecastChartInst) renderForecastChart();
   if (claimRatioChartInst) renderClaimRatioChart();
   if (commissionChartInst) renderCommissionChart();
+}
+
+function initHideCommission() {
+  const hideCommissionPref = localStorage.getItem('gic_hide_commission') === 'true';
+  const hideCommissionCb = document.getElementById('hideCommissionCb');
+  if (hideCommissionCb) {
+    hideCommissionCb.checked = hideCommissionPref;
+  }
+  toggleHideCommission(hideCommissionPref, false);
+}
+
+function toggleHideCommission(hide, save = true) {
+  const mainTable = document.getElementById('mainTable');
+  if (mainTable) {
+    if (hide) {
+      mainTable.classList.add('hide-commission');
+    } else {
+      mainTable.classList.remove('hide-commission');
+    }
+  }
+
+  const statCommissionCard = document.getElementById('statCommissionCard');
+  if (statCommissionCard) {
+    statCommissionCard.style.display = hide ? 'none' : '';
+  }
+
+  if (save) {
+    localStorage.setItem('gic_hide_commission', hide);
+    logActivity(`👁️ Commission display ${hide ? 'hidden' : 'shown'}`, 'info');
+  }
 }
 
 // 7. Bulk Actions
