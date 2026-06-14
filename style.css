@@ -1688,3 +1688,94 @@ body.dark-mode .sidebar { background: #0f172a; border-right: 1px solid var(--car
     width: 100% !important;
   }
 }
+
+/* Responsive Tables Card Layout for Mobile */
+@media (max-width: 768px) {
+  .table-scroll {
+    overflow-x: visible !important;
+  }
+  
+  table {
+    min-width: 0 !important;
+  }
+  
+  table, 
+  thead, 
+  tbody, 
+  tr, 
+  td {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  
+  thead {
+    display: none !important;
+  }
+  
+  tr {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--r-sm);
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  }
+  
+  /* Reset expand rows (e.g. family panel) and empty state rows */
+  tr.family-expand-row,
+  tr.family-expanded,
+  tr.no-results-row {
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    margin-bottom: 20px !important;
+  }
+  
+  td {
+    border: none !important;
+    padding: 8px 0 !important;
+    text-align: right !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    border-bottom: 1px dashed var(--card-border) !important;
+  }
+  
+  td:last-child {
+    border-bottom: none !important;
+  }
+  
+  td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    text-align: left;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+  
+  /* Reset cells that have colspan */
+  td[colspan] {
+    display: block !important;
+    width: 100% !important;
+    border: none !important;
+    padding: 12px 0 !important;
+    text-align: center !important;
+  }
+  
+  td[colspan]::before {
+    display: none !important;
+  }
+  
+  /* Keep cell text-alignment clean */
+  .cell-name, .cell-plan, .cell-premium, .cell-date, .cell-collection {
+    text-align: right !important;
+  }
+  
+  .cell-name br, .cell-plan br, .cell-premium br, .cell-date br {
+    display: inline;
+  }
+}

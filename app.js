@@ -1137,11 +1137,11 @@ function renderTable() {
     tr.id = `row-${client.id}`;
     tr.className = rowClass;
     tr.innerHTML = `
-      <td style="width:40px;padding-left:20px">
+      <td data-label="Select" style="width:40px;padding-left:20px">
         <input type="checkbox" class="cb-custom row-cb" data-id="${client.id}" onchange="updateBulkBar()">
       </td>
-      <td class="sr-num">${idx + 1}</td>
-      <td>
+      <td class="sr-num" data-label="Sr No.">${idx + 1}</td>
+      <td data-label="Client Details">
         <div class="cell-name">
           <strong class="clickable-name" onclick="openClientProfile('${client.id}')">${escapeHtml(client.name)}</strong><br>
           <small><i class="fa-solid fa-phone" style="font-size:9px;color:var(--text-light)"></i> ${cleanMobile(client.mobile) || '—'}</small>
@@ -1149,34 +1149,34 @@ function renderTable() {
           <br><small style="color:var(--slate-grey);font-size:9px;font-style:italic;" title="Created Timestamp"><i class="fa-regular fa-clock" style="font-size:8px"></i> Created: ${formatCreationTimestamp(client.created_at)}</small>
         </div>
       </td>
-      <td>
+      <td data-label="Plan & Provider">
         <div class="cell-plan">
           <strong>${escapeHtml(client.plan || '—')}</strong><br>
           <span class="provider-badge ${provClass}">${escapeHtml(client.provider || '—')}</span>
         </div>
       </td>
-      <td class="cell-num">${client.policy_no ? escapeHtml(client.policy_no) : '<span style="color:var(--text-light)">Not entered</span>'}</td>
-      <td>
+      <td class="cell-num" data-label="Policy No.">${client.policy_no ? escapeHtml(client.policy_no) : '<span style="color:var(--text-light)">Not entered</span>'}</td>
+      <td data-label="Premium">
         <div class="cell-premium">
           <strong>${formatCurrency(client.premium_amount)}</strong><br>
           <small><span class="mode-badge">${getPremiumModeLabel(client.premium_mode)}</span></small>
         </div>
       </td>
-      <td class="cell-commission">${formatCurrency(client.commission_amount)}</td>
-      <td>
+      <td class="cell-commission" data-label="Commission">${formatCurrency(client.commission_amount)}</td>
+      <td data-label="End Date">
         <div class="cell-date">
           <strong>${formatDate(client.end_date)}</strong><br>
           <small style="color:var(--text-light);font-size:10px">Start: ${formatDate(client.start_date)}</small>
         </div>
       </td>
-      <td><span class="expiry-badge ${expClass}">${expLabel}</span></td>
-      <td>
+      <td data-label="Status"><span class="expiry-badge ${expClass}">${expLabel}</span></td>
+      <td data-label="Collection Date">
         ${client.collection_date
           ? `<div class="cell-collection"><i class="fa-regular fa-calendar-check" style="color:var(--emerald);font-size:11px"></i> <strong>${formatDate(client.collection_date)}</strong></div>`
           : `<span style="color:var(--text-light);font-size:11px">—</span>`
         }
       </td>
-      <td>
+      <td data-label="Actions">
         <div class="action-btns">
           <button class="action-btn wa ${client.wa_sent ? 'sent' : ''}" title="Send WhatsApp Reminder" onclick="sendWhatsApp('${client.id}')">
             <i class="fa-brands fa-whatsapp"></i>
@@ -2583,15 +2583,15 @@ function renderClaimsTableRows() {
     `;
 
     tr.innerHTML = `
-      <td class="sr-num">${idx + 1}</td>
-      <td>${claimDetailsHtml}</td>
-      <td>
+      <td class="sr-num" data-label="Sr No.">${idx + 1}</td>
+      <td data-label="Client & Claimant">${claimDetailsHtml}</td>
+      <td data-label="Plan & Provider">
         <div class="cell-plan">
           <strong>${escapeHtml(claim.plan || '—')}</strong><br>
           <span class="provider-badge ${getProviderClass(claim.provider)}">${escapeHtml(claim.provider || '—')}</span>
         </div>
       </td>
-      <td>
+      <td data-label="Claim Amount">
         <div class="cell-premium">
           <strong>Claimed: ${formatCurrency(claim.amount)}</strong>
           ${claim.status === 'settled' && claim.settled_amount 
@@ -2600,14 +2600,14 @@ function renderClaimsTableRows() {
           }
         </div>
       </td>
-      <td>
+      <td data-label="Status">
         <span class="claim-status-badge ${statusClass}">${statusClass}</span>
       </td>
-      <td>${timelineHtml}</td>
-      <td style="max-width:200px;font-size:12px;color:var(--text-secondary);word-wrap:break-word;white-space:normal;">
+      <td data-label="Dates Timeline">${timelineHtml}</td>
+      <td data-label="Remarks" style="max-width:200px;font-size:12px;color:var(--text-secondary);word-wrap:break-word;white-space:normal;">
         ${claim.notes ? escapeHtml(claim.notes) : '<span style="color:var(--text-light)">No remarks</span>'}
       </td>
-      <td>
+      <td data-label="Actions">
         <div class="action-btns">
           <button class="action-btn edit" title="Edit Claim" onclick="openEditClaimModal('${claim.id}')">
             <i class="fa-regular fa-pen-to-square"></i>
@@ -3324,11 +3324,11 @@ function openClientProfile(clientId) {
     clientClaims.forEach(claim => {
       bodyHtml += `
         <tr>
-          <td><strong>${escapeHtml(claim.claimant_name)}</strong></td>
-          <td>${formatCurrency(claim.amount)}</td>
-          <td><span class="claim-badge badge-${claim.status}">${claim.status.toUpperCase()}</span></td>
-          <td>${formatDate(claim.date_applied)}</td>
-          <td><small>${escapeHtml(claim.notes || '—')}</small></td>
+          <td data-label="Claimant"><strong>${escapeHtml(claim.claimant_name)}</strong></td>
+          <td data-label="Amount">${formatCurrency(claim.amount)}</td>
+          <td data-label="Status"><span class="claim-badge badge-${claim.status}">${claim.status.toUpperCase()}</span></td>
+          <td data-label="Applied Date">${formatDate(claim.date_applied)}</td>
+          <td data-label="Notes"><small>${escapeHtml(claim.notes || '—')}</small></td>
         </tr>
       `;
     });
