@@ -1699,83 +1699,190 @@ body.dark-mode .sidebar { background: #0f172a; border-right: 1px solid var(--car
     min-width: 0 !important;
   }
   
-  table, 
-  thead, 
-  tbody, 
-  tr, 
-  td {
-    display: block !important;
-    width: 100% !important;
-    box-sizing: border-box;
-  }
-  
   thead {
     display: none !important;
   }
   
+  table, 
+  tbody {
+    display: block !important;
+    width: 100% !important;
+  }
+  
   tr {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    flex-direction: row !important;
+    position: relative !important;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: var(--r-sm);
-    margin-bottom: 16px;
-    padding: 12px 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    border-radius: var(--r);
+    margin-bottom: 20px;
+    padding: 16px 14px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+    box-sizing: border-box;
+    width: 100% !important;
   }
   
   /* Reset expand rows (e.g. family panel) and empty state rows */
   tr.family-expand-row,
   tr.family-expanded,
   tr.no-results-row {
+    display: block !important;
     padding: 0 !important;
     border: none !important;
     background: transparent !important;
     box-shadow: none !important;
     margin-bottom: 20px !important;
+    margin-top: -12px !important;
   }
   
   td {
-    border: none !important;
-    padding: 8px 0 !important;
-    text-align: right !important;
     display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
+    flex-direction: column !important;
+    box-sizing: border-box;
+    border: none !important;
+    padding: 6px 0 !important;
+  }
+  
+  /* Left column data cells */
+  td[data-label="Plan & Provider"],
+  td[data-label="Premium"],
+  td[data-label="End Date"],
+  td[data-label="Claim Amount"],
+  td[data-label="Dates Timeline"],
+  td[data-label="Amount"] {
+    flex: 1 1 45% !important;
+    width: 50% !important;
+    align-items: flex-start !important;
+    text-align: left !important;
+  }
+  
+  /* Right column data cells */
+  td[data-label="Policy No."],
+  td[data-label="Commission"],
+  td[data-label="Collection Date"],
+  td[data-label="Remarks"],
+  td[data-label="Applied Date"] {
+    flex: 1 1 45% !important;
+    width: 50% !important;
+    align-items: flex-end !important;
+    text-align: right !important;
+  }
+  
+  /* Full width cells */
+  td[data-label="Client Details"],
+  td[data-label="Client & Claimant"],
+  td[data-label="Claimant"],
+  td[data-label="Notes"] {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    align-items: flex-start !important;
+    text-align: left !important;
+    padding-left: 28px !important;
+    padding-right: 90px !important;
+    padding-bottom: 12px !important;
     border-bottom: 1px dashed var(--card-border) !important;
+    margin-bottom: 8px !important;
   }
   
-  td:last-child {
-    border-bottom: none !important;
+  /* Checkbox (Select) absolute position */
+  td[data-label="Select"] {
+    position: absolute !important;
+    top: 18px !important;
+    left: 14px !important;
+    width: auto !important;
+    padding: 0 !important;
+    z-index: 10;
   }
   
+  /* Hide Sr No on mobile */
+  td[data-label="Sr No."] {
+    display: none !important;
+  }
+  
+  /* Status badge absolute position at top right */
+  td[data-label="Status"] {
+    position: absolute !important;
+    top: 18px !important;
+    right: 14px !important;
+    width: auto !important;
+    padding: 0 !important;
+    z-index: 10;
+  }
+  
+  /* Actions centered at the bottom of card */
+  td[data-label="Actions"] {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    padding-top: 12px !important;
+    padding-bottom: 0 !important;
+    border-top: 1px dashed var(--card-border) !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    align-items: center !important;
+    margin-top: 8px !important;
+  }
+  
+  /* Label generation */
   td::before {
     content: attr(data-label);
     font-weight: 600;
-    text-align: left;
     color: var(--text-muted);
-    font-size: 12.5px;
-    margin-right: 12px;
-    flex-shrink: 0;
+    font-size: 11px;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: block !important;
   }
   
-  /* Reset cells that have colspan */
+  /* Hide labels for cells where it's self-evident */
+  td[data-label="Select"]::before,
+  td[data-label="Client Details"]::before,
+  td[data-label="Client & Claimant"]::before,
+  td[data-label="Claimant"]::before,
+  td[data-label="Status"]::before,
+  td[data-label="Actions"]::before {
+    display: none !important;
+  }
+  
+  /* Reset cells that have colspan (like loading, empty, expand panel) */
   td[colspan] {
     display: block !important;
     width: 100% !important;
     border: none !important;
     padding: 12px 0 !important;
     text-align: center !important;
+    flex: 1 1 100% !important;
   }
   
   td[colspan]::before {
     display: none !important;
   }
   
-  /* Keep cell text-alignment clean */
-  .cell-name, .cell-plan, .cell-premium, .cell-date, .cell-collection {
-    text-align: right !important;
+  /* Keep text alignments consistent inside component divs */
+  .cell-name {
+    text-align: left !important;
+  }
+  
+  .cell-plan, .cell-premium {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: inherit !important;
+    text-align: inherit !important;
+  }
+  
+  .cell-date, .cell-collection {
+    text-align: inherit !important;
   }
   
   .cell-name br, .cell-plan br, .cell-premium br, .cell-date br {
     display: inline;
+  }
+  
+  /* Make family expand panel look good inside the stack */
+  .family-expand-row td {
+    padding: 0 !important;
   }
 }
