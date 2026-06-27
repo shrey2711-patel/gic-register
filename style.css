@@ -572,6 +572,8 @@ tbody tr.expired-row { background: rgba(239,68,68,0.02); }
 tbody tr.urgent-row { background: rgba(249,115,22,0.02); }
 tbody tr.renewed-row { opacity: 0.7; }
 tbody tr.renewed-row:hover { opacity: 0.95; }
+tbody tr.cancelled-row { opacity: 0.6; background: rgba(75, 85, 99, 0.05); }
+tbody tr.cancelled-row:hover { opacity: 0.9; }
 tbody tr.family-expanded { background: var(--platinum); }
 td { padding: 12px 14px; vertical-align: middle; }
 td:first-child { padding-left: 20px; }
@@ -632,6 +634,7 @@ td:first-child { padding-left: 20px; }
 .exp-expired { background: var(--danger-dim); color: var(--danger); border-color: rgba(239,68,68,0.3); }
 .exp-future { background: var(--purple-dim); color: var(--purple); border-color: rgba(139,92,246,0.3); }
 .exp-renewed { background: rgba(90,110,124,0.1); color: #5a6e7c; border-color: rgba(90,110,124,0.25); }
+.exp-cancelled { background: rgba(75, 85, 99, 0.1); color: #4b5563; border-color: rgba(75, 85, 99, 0.25); }
 @keyframes todayPulse { 0%,100% { opacity:1; } 50% { opacity:0.65; } }
 
 /* Action Buttons in Table */
@@ -1641,6 +1644,7 @@ body.dark-mode .form-input, body.dark-mode .form-select, body.dark-mode .form-te
 body.dark-mode tr.expired-row { background: rgba(239, 68, 68, 0.15) !important; }
 body.dark-mode tr.urgent-row { background: rgba(245, 158, 11, 0.15) !important; }
 body.dark-mode tr.renewed-row { background: rgba(16, 185, 129, 0.15) !important; }
+body.dark-mode tr.cancelled-row { background: rgba(75, 85, 99, 0.15) !important; }
 body.dark-mode tr:hover { background: rgba(255, 255, 255, 0.02) !important; }
 body.dark-mode .table-card { background: var(--card-bg); border-color: var(--card-border); }
 body.dark-mode th { background: #1e293b; border-color: var(--card-border); color: var(--text-secondary); }

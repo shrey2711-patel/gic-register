@@ -1145,6 +1145,21 @@
               <input type="number" class="form-input" id="claim_settledAmount" placeholder="e.g. 45000">
             </div>
           </div>
+          <!-- Rejection Fields -->
+          <div class="form-group" id="claim_dateRejectedGroup" style="display:none;">
+            <label class="form-label">Rejection Date <span class="required">*</span></label>
+            <input type="text" class="form-input date-mask" id="claim_dateRejected" placeholder="DD-MM-YYYY" maxlength="10">
+          </div>
+          <div class="form-group" id="claim_rejectionReasonGroup" style="display:none;">
+            <label class="form-label">Reason for Rejection <span class="required">*</span></label>
+            <input type="text" class="form-input" id="claim_rejectionReason" placeholder="e.g. Pre-existing illness, Documentation missing">
+          </div>
+          <div class="form-group" id="claim_cancelPolicyGroup" style="display:none; align-items: center; justify-content: flex-start; gap: 8px;">
+            <label class="form-label" style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin-top: 18px;">
+              <input type="checkbox" id="claim_cancelPolicyCb" class="cb-custom">
+              <span style="color:var(--danger); font-weight:700;">Company Cancelled Policy</span>
+            </label>
+          </div>
         </div>
       </div>
 

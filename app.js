@@ -974,8 +974,8 @@ function applyFiltersAndStats() {
   // Compute stats (all records, no status filter)
   let totalPremium = 0, totalComm = 0, active = 0, expired = 0, days15 = 0, days7 = 0, days3 = 0, expiredToday = 0;
   enriched.forEach(c => {
-    if (c._isFuture) {
-      return; // Skip future policies for active/expired statistics
+    if (c._isFuture || c.cancelled_by_company) {
+      return; // Skip future and cancelled policies for active/expired statistics
     }
 
     let isActive = false;
@@ -1119,12 +1119,18 @@ function renderTable() {
       expClass = 'exp-renewed';
       expLabel = 'Renewed';
     }
+    if (client.cancelled_by_company) {
+      expClass = 'exp-cancelled';
+      expLabel = 'Cancelled';
+    }
     const provClass = getProviderClass(client.provider);
     const isExpanded = expandedRows.has(client.id);
 
     // Row background class
     let rowClass = '';
-    if (client._isRenewed) {
+    if (client.cancelled_by_company) {
+      rowClass = 'cancelled-row';
+    } else if (client._isRenewed) {
       rowClass = 'renewed-row';
     } else if (days < 0) {
       rowClass = 'expired-row';
@@ -1184,6 +1190,7 @@ function renderTable() {
           <button class="action-btn profile" title="View Client Profile" onclick="openClientProfile('${client.id}'); event.stopPropagation();" style="color:var(--sky)">
             <i class="fa-solid fa-circle-user"></i>
           </button>
+          ${!client.cancelled_by_company ? `
           <button class="action-btn renew" title="Renew Policy" onclick="openRenewModal('${client.id}')">
             <i class="fa-solid fa-arrows-rotate"></i>
           </button>
@@ -1192,6 +1199,9 @@ function renderTable() {
             <i class="fa-solid fa-square-check"></i>
           </button>
           ` : ''}
+          ` : `
+          <span style="font-size:11px;color:var(--danger);font-weight:700;margin-right:auto;padding-right:6px;" title="Cancellation date: ${formatDate(client.cancelled_date)}"><i class="fa-solid fa-ban"></i> Cancelled</span>
+          `}
           <button class="action-btn family ${isExpanded ? 'active' : ''}" title="Show/Hide Family Members" onclick="toggleFamilyRow('${client.id}')">
             <i class="fa-solid fa-people-group"></i>
           </button>
@@ -2264,6 +2274,10 @@ window.addEventListener('DOMContentLoaded', function() {
 function openRenewModal(clientId) {
   const client = DATA.find(c => c.id === clientId);
   if (!client) return;
+  if (client.cancelled_by_company) {
+    alert(`This policy has been cancelled by the company and cannot be renewed.`);
+    return;
+  }
 
   // 1. Reset all fields in the Add Client modal first
   openAddClientModal();
@@ -2638,6 +2652,10 @@ function openLogClaimModal() {
   document.getElementById('claim_dateResponded').value = '';
   document.getElementById('claim_dateApproved').value = '';
   document.getElementById('claim_dateSettled').value = '';
+  document.getElementById('claim_dateRejected').value = '';
+  document.getElementById('claim_rejectionReason').value = '';
+  const cancelPolicyCb = document.getElementById('claim_cancelPolicyCb');
+  if (cancelPolicyCb) cancelPolicyCb.checked = false;
   document.getElementById('claim_notes').value = '';
   const settledAmtInput = document.getElementById('claim_settledAmount');
   if (settledAmtInput) settledAmtInput.value = '';
@@ -2678,6 +2696,12 @@ function openEditClaimModal(claimId) {
   document.getElementById('claim_dateResponded').value = yyyymmddToDdmmyyyy(claim.date_responded || '');
   document.getElementById('claim_dateApproved').value = yyyymmddToDdmmyyyy(claim.date_approved || '');
   document.getElementById('claim_dateSettled').value = yyyymmddToDdmmyyyy(claim.date_settled || '');
+  document.getElementById('claim_dateRejected').value = yyyymmddToDdmmyyyy(claim.date_rejected || '');
+  document.getElementById('claim_rejectionReason').value = claim.rejection_reason || '';
+  const cancelPolicyCb = document.getElementById('claim_cancelPolicyCb');
+  if (cancelPolicyCb) {
+    cancelPolicyCb.checked = !!claim.cancel_policy;
+  }
   document.getElementById('claim_notes').value = claim.notes || '';
   const settledAmtInput = document.getElementById('claim_settledAmount');
   if (settledAmtInput) settledAmtInput.value = claim.settled_amount || '';
@@ -2706,19 +2730,38 @@ function toggleClaimStatusFields() {
   if (!approvedGrp || !settledGrp) return;
 
   const settledAmtGrp = document.getElementById('claim_settledAmountGroup');
+  const dateRejectedGrp = document.getElementById('claim_dateRejectedGroup');
+  const rejectionReasonGrp = document.getElementById('claim_rejectionReasonGroup');
+  const cancelPolicyGrp = document.getElementById('claim_cancelPolicyGroup');
 
   if (status === 'approved') {
     approvedGrp.style.display = 'flex';
     settledGrp.style.display = 'none';
     if (settledAmtGrp) settledAmtGrp.style.display = 'none';
+    if (dateRejectedGrp) dateRejectedGrp.style.display = 'none';
+    if (rejectionReasonGrp) rejectionReasonGrp.style.display = 'none';
+    if (cancelPolicyGrp) cancelPolicyGrp.style.display = 'none';
   } else if (status === 'settled') {
     approvedGrp.style.display = 'flex';
     settledGrp.style.display = 'flex';
     if (settledAmtGrp) settledAmtGrp.style.display = 'flex';
+    if (dateRejectedGrp) dateRejectedGrp.style.display = 'none';
+    if (rejectionReasonGrp) rejectionReasonGrp.style.display = 'none';
+    if (cancelPolicyGrp) cancelPolicyGrp.style.display = 'none';
+  } else if (status === 'rejected') {
+    approvedGrp.style.display = 'none';
+    settledGrp.style.display = 'none';
+    if (settledAmtGrp) settledAmtGrp.style.display = 'none';
+    if (dateRejectedGrp) dateRejectedGrp.style.display = 'flex';
+    if (rejectionReasonGrp) rejectionReasonGrp.style.display = 'flex';
+    if (cancelPolicyGrp) cancelPolicyGrp.style.display = 'flex';
   } else {
     approvedGrp.style.display = 'none';
     settledGrp.style.display = 'none';
     if (settledAmtGrp) settledAmtGrp.style.display = 'none';
+    if (dateRejectedGrp) dateRejectedGrp.style.display = 'none';
+    if (rejectionReasonGrp) rejectionReasonGrp.style.display = 'none';
+    if (cancelPolicyGrp) cancelPolicyGrp.style.display = 'none';
   }
 
   const rejectionsSection = document.getElementById('claim_rejectionsSection');
@@ -2838,6 +2881,9 @@ async function submitLogClaim() {
   const dateRespondedRaw = document.getElementById('claim_dateResponded').value.trim();
   const dateApprovedRaw = document.getElementById('claim_dateApproved').value.trim();
   const dateSettledRaw = document.getElementById('claim_dateSettled').value.trim();
+  const dateRejectedRaw = document.getElementById('claim_dateRejected').value.trim();
+  const rejectionReason = document.getElementById('claim_rejectionReason').value.trim();
+  const cancelPolicy = document.getElementById('claim_cancelPolicyCb')?.checked || false;
   const notes = document.getElementById('claim_notes').value.trim();
   const settledAmtVal = document.getElementById('claim_settledAmount') ? document.getElementById('claim_settledAmount').value.trim() : '';
 
@@ -2876,6 +2922,17 @@ async function submitLogClaim() {
     }
     if (isNaN(settledAmtVal) || Number(settledAmtVal) <= 0) {
       showToast('Please enter a valid Settled Amount', 'error'); return;
+    }
+  }
+  if (status === 'rejected') {
+    if (!dateRejectedRaw) {
+      showToast('Please enter a Rejection Date', 'error'); return;
+    }
+    if (!isValidDateString(dateRejectedRaw)) {
+      showToast('Please enter a valid Rejection Date in DD-MM-YYYY format', 'error'); return;
+    }
+    if (!rejectionReason) {
+      showToast('Please enter the Reason for Rejection', 'error'); return;
     }
   }
 
@@ -2936,6 +2993,9 @@ async function submitLogClaim() {
     date_settled: dateSettledRaw ? ddmmyyyyToYyyymmdd(dateSettledRaw) : '',
     notes,
     rejections,
+    date_rejected: status === 'rejected' ? ddmmyyyyToYyyymmdd(dateRejectedRaw) : '',
+    rejection_reason: status === 'rejected' ? rejectionReason : '',
+    cancel_policy: status === 'rejected' ? cancelPolicy : false,
     updated_at: new Date().toISOString()
   };
 
@@ -2966,6 +3026,28 @@ async function submitLogClaim() {
     showToast('Claim logged successfully!', 'success');
     logActivity(`➕ Claim logged: ${claimantName} (₹${amount})`, 'success');
   }
+
+  if (status === 'rejected' && cancelPolicy) {
+    client.cancelled_by_company = true;
+    client.cancelled_date = ddmmyyyyToYyyymmdd(dateRejectedRaw);
+    client.cancellation_reason = rejectionReason;
+  } else {
+    if (client.cancelled_by_company) {
+      const otherCancellingClaims = CLAIMS.some(c => c.client_id === clientId && c.id !== id && c.status === 'rejected' && c.cancel_policy);
+      if (!otherCancellingClaims && (!cancelPolicy || status !== 'rejected')) {
+        client.cancelled_by_company = false;
+        delete client.cancelled_date;
+        delete client.cancellation_reason;
+      }
+    }
+  }
+  
+  updateInDB(client);
+  if (cloudSyncActive && firestoreDb) {
+    const cfg = JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY)||'{}');
+    firestoreDb.collection(cfg.collection || DEFAULT_COLLECTION).doc(client.id).set(client).catch(() => {});
+  }
+  applyFiltersAndStats();
 
   renderClaimsTable();
   closeModal('logClaimOverlay');
@@ -3266,6 +3348,13 @@ function openClientProfile(clientId) {
           <div><strong>Start Date:</strong> <span>${formatDate(client.start_date)}</span></div>
           <div><strong>End Date:</strong> <span>${formatDate(client.end_date)}</span></div>
           <div><strong>Collection Date:</strong> <span>${client.collection_date ? formatDate(client.collection_date) : '—'}</span></div>
+          ${client.cancelled_by_company ? `
+            <div class="full-width" style="border: 1px solid rgba(239,68,68,0.25); background: rgba(239,68,68,0.02); border-radius: 6px; padding: 12px; margin-top: 10px; box-sizing: border-box;">
+              <strong style="color: var(--danger); display: block; font-size: 13px; margin-bottom: 6px;"><i class="fa-solid fa-ban"></i> POLICY CANCELLED BY COMPANY</strong>
+              <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;"><strong>Cancellation Date:</strong> ${formatDate(client.cancelled_date)}</div>
+              <div style="font-size: 12px; color: var(--text-secondary);"><strong>Cancellation Reason:</strong> ${escapeHtml(client.cancellation_reason || '—')}</div>
+            </div>
+          ` : ''}
         </div>
       </div>
   `;
@@ -3374,6 +3463,10 @@ function openClientProfile(clientId) {
 function markAsRenewed(clientId) {
   const client = DATA.find(c => c.id === clientId);
   if (!client) return;
+  if (client.cancelled_by_company) {
+    alert(`This policy has been cancelled by the company and cannot be renewed.`);
+    return;
+  }
   
   if (confirm(`Are you sure you want to mark ${client.name}'s policy as Renewed?`)) {
     client.renewed = true;
@@ -3439,6 +3532,11 @@ function exportClientPDF(clientId) {
     ["End Date", formatDate(client.end_date)],
     ["Collection Date", client.collection_date ? formatDate(client.collection_date) : "—"]
   ];
+  if (client.cancelled_by_company) {
+    policyInfo.push(["Policy Status", "CANCELLED BY COMPANY"]);
+    policyInfo.push(["Cancellation Date", formatDate(client.cancelled_date)]);
+    policyInfo.push(["Cancellation Reason", client.cancellation_reason || "—"]);
+  }
 
   doc.autoTable({
     startY: nextY1 + 3,
