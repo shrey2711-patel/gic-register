@@ -2774,6 +2774,43 @@ function toggleClaimStatusFields() {
   }
 }
 
+function isClientPolicyActive(c) {
+  if (c.cancelled_by_company) return false;
+  if (isFuturePolicy(c.start_date)) return false;
+  if (daysLeft(c.end_date) < 0) return false;
+  if (c.renewed) return false;
+  
+  const hasNewer = DATA.some(other => {
+    if (other.id === c.id) return false;
+    const hasSamePolicyNo = c.policy_no && other.policy_no && 
+                            c.policy_no.trim() !== '' && 
+                            c.policy_no.trim().toLowerCase() === other.policy_no.trim().toLowerCase();
+                            
+    const hasSameClientAndPlan = (!c.policy_no || !other.policy_no || c.policy_no.trim() === '' || other.policy_no.trim() === '') &&
+                                  c.name && other.name &&
+                                  c.name.trim().toLowerCase() === other.name.trim().toLowerCase() &&
+                                  c.provider && other.provider &&
+                                  c.provider.trim().toLowerCase() === other.provider.trim().toLowerCase() &&
+                                  c.plan && other.plan &&
+                                  c.plan.trim().toLowerCase() === other.plan.trim().toLowerCase();
+                                  
+    if (!hasSamePolicyNo && !hasSameClientAndPlan) return false;
+    
+    const cStart = new Date(c.start_date || c.created_at || 0);
+    const otherStart = new Date(other.start_date || other.created_at || 0);
+    if (otherStart > cStart) return true;
+    if (otherStart.getTime() === cStart.getTime()) {
+      const cEnd = new Date(c.end_date || 0);
+      const otherEnd = new Date(other.end_date || 0);
+      if (otherEnd > cEnd) return true;
+      return other.id > c.id;
+    }
+    return false;
+  });
+  
+  return !hasNewer;
+}
+
 function searchClaimClients() {
   const query = document.getElementById('claim_clientSearch').value.toLowerCase().trim();
   const resultsDiv = document.getElementById('claim_clientSearchResults');
@@ -2785,11 +2822,11 @@ function searchClaimClients() {
     return;
   }
 
-  // Filter clients
-  const matches = DATA.filter(c => 
-    c.name.toLowerCase().includes(query) || 
-    (c.mobile && c.mobile.includes(query))
-  ).slice(0, 5);
+  // Filter clients - only return active policies
+  const matches = DATA.filter(c => {
+    const matchesQuery = c.name.toLowerCase().includes(query) || (c.mobile && c.mobile.includes(query));
+    return matchesQuery && isClientPolicyActive(c);
+  }).slice(0, 5);
 
   if (matches.length === 0) {
     resultsDiv.innerHTML = `<div class="client-result-item" style="cursor:default;color:var(--text-light)">No clients found</div>`;
